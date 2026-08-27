@@ -68,7 +68,7 @@ const el = (id) => document.getElementById(id);
 const state = {
   events: [],
   index: -1,
-  playing: true,
+  playing: false,
   timer: null,
 };
 
@@ -134,14 +134,30 @@ function renderStats() {
   el("stat-flagged").textContent = flagged;
 }
 
-function pulseSensor() {
+function pulseSensor(timestamp) {
   const dot = el("sensor-dot");
-  el("sensor-text").textContent = "Baggage detected, capturing…";
+  el("sensor-state").textContent = "Baggage detected";
+  el("sensor-time").textContent = `Triggered ${formatTimestamp(timestamp)}`;
   dot.classList.add("active");
   setTimeout(() => {
     dot.classList.remove("active");
-    el("sensor-text").textContent = "Waiting for baggage…";
+    el("sensor-state").textContent = "Idle";
   }, SENSOR_PULSE_MS);
+}
+
+function renderBarcode(event) {
+  const readFailed = event.status === "manual" || !event.tag_id;
+  const valueNode = el("barcode-value");
+  if (readFailed) {
+    valueNode.textContent = "No read";
+    valueNode.classList.add("unknown");
+  } else {
+    valueNode.textContent = event.tag_id;
+    valueNode.classList.remove("unknown");
+  }
+  el("barcode-read-state").textContent = readFailed
+    ? "Barcode unreadable — falls through to manual identification"
+    : "Read OK";
 }
 
 function renderCurrent() {
@@ -151,11 +167,11 @@ function renderCurrent() {
     return;
   }
 
-  pulseSensor();
+  pulseSensor(event.timestamp);
+  renderBarcode(event);
   renderPhoto(event.photo_path);
   setField("field-flight", event.flight_number, { unknownIfEmpty: event.status === "manual" });
   setField("field-destination", event.destination, { unknownIfEmpty: event.status === "manual" });
-  setField("field-tag", event.tag_id, { unknownIfEmpty: event.status === "manual" });
   setField("field-timestamp", formatTimestamp(event.timestamp));
   renderVerdict(event.status);
   renderStats();
@@ -188,9 +204,9 @@ fetch(DATA_URL)
   .then((events) => {
     state.events = events;
     goTo(0);
-    setPlaying(true);
+    setPlaying(false);
   })
   .catch((err) => {
-    el("sensor-text").textContent = "Failed to load mock data.";
+    el("sensor-state").textContent = "Failed to load mock data";
     console.error(err);
   });
