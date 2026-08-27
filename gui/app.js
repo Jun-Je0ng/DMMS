@@ -4,10 +4,21 @@
 // shape stays { id, timestamp, status, flight_number, destination, photo_path }.
 // Served via run_gui.py from the repo root, so paths are relative to that.
 const DATA_URL = "../python/camera_subsystem/mock_events.json";
+const FLIGHTS_URL = "../python/camera_subsystem/flights.csv";
 const IMAGE_BASE_URL = "../python/camera_subsystem/";
 const ADVANCE_MS = 2500;
 const CAN_COUNT = 4;
 const CAN_LABELS = ["Can 1", "Can 2", "Can 3", "Can 4"];
+
+// Weighted so most bags come through clean, matching the "180 scans is
+// viable, not 100%" note from the site visit — a handful still need a human.
+const STATUS_WEIGHTS = [
+  ["matched", 70],
+  ["manual", 10],
+  ["duplicate", 8],
+  ["unmatched_scan", 6],
+  ["ambiguous", 6],
+];
 
 // Only "matched" bags are confidently routed to a can. Everything else — no
 // scan found, a repeat read, an unpaired scan, more than one possible match —
@@ -28,10 +39,12 @@ const el = (id) => document.getElementById(id);
 
 const state = {
   events: [],
+  flights: [],
   index: -1,
   playing: false,
   timer: null,
   dismissed: new Set(),
+  seq: 0,
 };
 
 function formatTime(iso) {
@@ -47,6 +60,44 @@ function gridDims(count) {
   const cols = Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / cols);
   return { cols, rows };
+}
+
+function parseFlightsCsv(text) {
+  const lines = text.trim().split("\n").slice(1); // drop header row
+  return lines
+    .map((line) => line.split(","))
+    .filter((cols) => cols.length >= 2)
+    .map(([flight_number, destination]) => ({ flight_number: flight_number.trim(), destination: destination.trim() }));
+}
+
+function randomStatus() {
+  const total = STATUS_WEIGHTS.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = Math.random() * total;
+  for (const [status, weight] of STATUS_WEIGHTS) {
+    if (roll < weight) return status;
+    roll -= weight;
+  }
+  return "matched";
+}
+
+// Endless demo feed: generates a bag in the same shape as a real event, so
+// Play can run indefinitely instead of stopping once the mock fixture runs
+// out. No photo_path — there's no real photo behind a generated bag, and the
+// camera fallback icon makes that honestly visible rather than faking one.
+function generateRandomEvent() {
+  state.seq += 1;
+  const status = randomStatus();
+  const pool = state.flights.length ? state.flights : [{ flight_number: "QF000", destination: "Unknown" }];
+  const flight = pool[Math.floor(Math.random() * pool.length)];
+  const isKnown = status !== "manual";
+  return {
+    id: `bag_${state.seq}`,
+    timestamp: new Date().toISOString(),
+    status,
+    flight_number: isKnown ? flight.flight_number : null,
+    destination: isKnown ? flight.destination : null,
+    photo_path: null,
+  };
 }
 
 // Demo-only stand-in for real can assignment. The barcode subsystem (not
@@ -182,7 +233,12 @@ function goTo(index) {
   render();
 }
 
-function stepForward() { goTo(state.index + 1); }
+function stepForward() {
+  if (state.index + 1 >= state.events.length) {
+    state.events.push(generateRandomEvent());
+  }
+  goTo(state.index + 1);
+}
 function stepBackward() { goTo(state.index - 1); }
 
 function setPlaying(playing) {
@@ -190,14 +246,7 @@ function setPlaying(playing) {
   el("btn-play").textContent = playing ? "⏸" : "▶";
   clearInterval(state.timer);
   if (playing) {
-    if (state.index >= state.events.length - 1) state.index = -1;
-    state.timer = setInterval(() => {
-      if (state.index >= state.events.length - 1) {
-        setPlaying(false);
-        return;
-      }
-      stepForward();
-    }, ADVANCE_MS);
+    state.timer = setInterval(stepForward, ADVANCE_MS);
   }
 }
 
@@ -208,10 +257,14 @@ el("btn-play").addEventListener("click", () => setPlaying(!state.playing));
 buildQuadrantShells();
 render();
 
-fetch(DATA_URL)
-  .then((r) => r.json())
-  .then((events) => {
+Promise.all([
+  fetch(DATA_URL).then((r) => r.json()),
+  fetch(FLIGHTS_URL).then((r) => r.text()).then(parseFlightsCsv),
+])
+  .then(([events, flights]) => {
     state.events = events;
+    state.flights = flights;
+    state.seq = events.length;
     render();
   })
   .catch((err) => {
