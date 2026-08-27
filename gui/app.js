@@ -35,9 +35,18 @@ const state = {
 };
 
 function formatTime(iso) {
-  if (!iso) return "—";
+  if (!iso) return "";
   const d = new Date(iso);
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+// Balances tile count into a roughly square grid, same approach a video call
+// uses: 1 bag fills the whole quadrant, 2 split it evenly, 4 make a 2x2, etc.
+function gridDims(count) {
+  if (count <= 1) return { cols: 1, rows: 1 };
+  const cols = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / cols);
+  return { cols, rows };
 }
 
 // Demo-only stand-in for real can assignment. The barcode subsystem (not
@@ -91,11 +100,12 @@ function makeTile(event, { statusChip = null } = {}) {
     photo.appendChild(img);
   }
 
+  const sub = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
   const caption = document.createElement("div");
   caption.className = "tile-caption";
   caption.innerHTML = `
     <div class="tile-flight">${event.flight_number || "Unknown flight"}</div>
-    <div class="tile-sub">${event.id || ""} · ${formatTime(event.timestamp)}</div>
+    <div class="tile-sub">${sub}</div>
   `;
 
   tile.appendChild(photo);
@@ -117,6 +127,10 @@ function makeTile(event, { statusChip = null } = {}) {
 
 function fillGrid(gridEl, items, { emptyText, statusChipFor = null }) {
   gridEl.innerHTML = "";
+  const { cols, rows } = gridDims(items.length);
+  gridEl.style.setProperty("--cols", cols);
+  gridEl.style.setProperty("--rows", rows);
+
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "tile-empty";

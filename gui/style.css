@@ -60,8 +60,8 @@ body {
   height: 100vh;
   display: grid;
   grid-template-rows: auto auto 1fr auto;
-  gap: 16px;
-  padding: 24px 32px 16px;
+  gap: 10px;
+  padding: 16px 24px 10px;
 }
 
 /* ---- Mock-data banner ---- */
@@ -70,8 +70,8 @@ body {
   background: var(--warning-bg);
   border: 1px solid var(--warning);
   border-radius: var(--radius-md);
-  padding: 10px 16px;
-  font-size: 13px;
+  padding: 6px 14px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -110,14 +110,14 @@ body {
 
 .brand-text h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: 0.2px;
 }
 
 .brand-text p {
-  margin: 2px 0 0;
-  font-size: 13px;
+  margin: 1px 0 0;
+  font-size: 12px;
 }
 
 .stat-row {
@@ -159,7 +159,7 @@ body {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px 20px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -178,8 +178,8 @@ body {
 
 .board {
   display: grid;
-  grid-template-rows: 1fr auto;
-  gap: 16px;
+  grid-template-rows: 1fr 190px;
+  gap: 12px;
   min-height: 0;
 }
 
@@ -187,7 +187,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
 }
 
@@ -247,28 +247,31 @@ body {
   color: var(--warning);
 }
 
-/* ---- Tiles ---- */
+/* ---- Tiles ----
+   One bag fills the whole quadrant; each additional bag splits the space
+   evenly (same balancing a video-call grid uses), so a photo is always
+   large enough to actually see — never a small scrolling thumbnail. */
 
 .tile-grid {
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 10px;
-  overflow-y: auto;
-  padding-right: 2px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(var(--cols, 1), 1fr);
+  grid-template-rows: repeat(var(--rows, 1), 1fr);
 }
 
 .tile {
-  width: 108px;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  animation: tile-in 0.25s ease;
-  flex: none;
+  animation: tile-in 0.2s ease;
 }
 
 .tile:hover {
@@ -276,18 +279,17 @@ body {
 }
 
 @keyframes tile-in {
-  from { opacity: 0; transform: scale(0.92); }
+  from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
 
 .tile-photo {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  height: 100%;
   background: var(--surface-3);
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
 }
 
 .tile-photo img {
@@ -300,18 +302,25 @@ body {
 .tile-photo img.loaded { display: block; }
 
 .tile-photo svg {
-  width: 26px;
-  height: 26px;
+  width: 15%;
+  height: 15%;
+  min-width: 24px;
+  min-height: 24px;
   color: var(--text-muted);
 }
 
 .tile-caption {
-  padding: 6px 8px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 12px 8px;
   line-height: 1.3;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
 }
 
 .tile-caption .tile-flight {
-  font-size: 12px;
+  font-size: clamp(13px, 2vw, 20px);
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -319,21 +328,22 @@ body {
 }
 
 .tile-caption .tile-sub {
-  font-size: 10px;
-  color: var(--text-muted);
+  font-size: clamp(10px, 1vw, 13px);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .tile-status-chip {
-  display: inline-block;
-  margin: 6px 8px 0;
-  font-size: 9px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
 }
 
@@ -343,11 +353,14 @@ body {
 .tile-status-chip.status-ambiguous  { background: var(--neutral-bg); color: var(--text-secondary); }
 
 .tile-empty {
-  width: 100%;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 13px;
   text-align: center;
-  padding: 20px 8px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-md);
 }
