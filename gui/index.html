@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MUL Baggage Verification</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="kiosk">
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <h1>MUL Baggage Verification</h1>
+          <p class="muted">Make-Up Line &middot; identification display</p>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-tile">
+          <span class="stat-value" id="stat-total">0</span>
+          <span class="stat-label">Scanned</span>
+        </div>
+        <div class="stat-tile stat-good">
+          <span class="stat-value" id="stat-matched">0</span>
+          <span class="stat-label">Matched</span>
+        </div>
+        <div class="stat-tile stat-flagged">
+          <span class="stat-value" id="stat-flagged">0</span>
+          <span class="stat-label">Needs attention</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section class="card camera-card">
+        <h2 class="card-title">Camera Snapshot</h2>
+        <div class="camera-frame">
+          <img id="bag-photo" alt="Snapshot of the current bag" />
+          <div class="photo-fallback" id="photo-fallback">
+            <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+              <path fill="currentColor" d="M4 5h3l1.5-2h7L17 5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/>
+            </svg>
+            <p>Image not yet available</p>
+            <p class="photo-path" id="photo-path-text"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card data-card">
+        <h2 class="card-title">Tag Data</h2>
+        <dl class="data-list">
+          <div class="data-row">
+            <dt>Flight</dt>
+            <dd id="field-flight">&mdash;</dd>
+          </div>
+          <div class="data-row">
+            <dt>Destination</dt>
+            <dd id="field-destination">&mdash;</dd>
+          </div>
+          <div class="data-row">
+            <dt>Tag ID</dt>
+            <dd id="field-tag" class="mono">&mdash;</dd>
+          </div>
+          <div class="data-row">
+            <dt>Scanned at</dt>
+            <dd id="field-timestamp" class="mono">&mdash;</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+
+    <section class="verdict" id="verdict" role="status">
+      <span class="verdict-icon" id="verdict-icon" aria-hidden="true"></span>
+      <div class="verdict-text">
+        <span class="verdict-label" id="verdict-label">Waiting</span>
+        <span class="verdict-detail" id="verdict-detail">&nbsp;</span>
+      </div>
+    </section>
+
+    <footer class="footbar">
+      <div class="sensor-status">
+        <span class="sensor-dot" id="sensor-dot" aria-hidden="true"></span>
+        <span id="sensor-text">Waiting for baggage&hellip;</span>
+      </div>
+
+      <div class="demo-controls" aria-label="Demo playback controls (mock data only)">
+        <button id="btn-prev" title="Previous bag">&#8592;</button>
+        <button id="btn-play" title="Play / pause">&#9654;</button>
+        <button id="btn-next" title="Next bag">&#8594;</button>
+        <span class="demo-label">demo controls &middot; mock data</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
