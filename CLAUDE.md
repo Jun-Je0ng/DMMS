@@ -11,9 +11,19 @@ scanning tags and camera-matching bags as they enter the line.
 3. A fixed barcode scanner reads the tag on the bag (may fail to read).
 4. Snapshot + decoded tag data (flight number, terminal, etc.) — or snapshot
    alone if the barcode couldn't be read — is published as an event.
-5. A ground handler refers to a GUI (this repo's `gui/`) to see the bag and its
-   identification, and check whether it matches the can/truck they're loading.
-6. Match → load the bag onto the assigned can. No match → manual scan/handling.
+5. Sensor detection + barcode scan + camera photo are all backend logic (not
+   shown in the GUI as separate panels) that resolve to one event: a bag,
+   its photo, and — once the barcode subsystem is merged in — which can it
+   belongs to.
+6. The GUI (this repo's `gui/`) is a routing board: as each bag's photo
+   arrives, it's placed into the quadrant for its assigned can. A ground
+   handler glances at a quadrant to see what's waiting for that can, and
+   double-clicks a photo once they've physically loaded that bag, clearing it.
+7. A bag with no confident can match (no scan, a duplicate read, an unpaired
+   scan, more than one possible match) goes to a separate "Needs Attention"
+   tray instead of a guessed quadrant — that's the manual-scan path from the
+   original site-visit workflow, just surfaced as a holding area rather than
+   a yes/no prompt.
 
 Notes from the site visit: ~180 scans is a viable target (not 100%), one MUL
 loop takes ~3 minutes, and misrouted baggage down the wrong MUL is a daily
@@ -52,10 +62,11 @@ occurrence this project is meant to catch earlier.
   aren't in the mock data yet but the GUI renders placeholder UI for them.
 - When `status` is `manual`, `flight_number`/`destination` are genuinely null —
   the GUI must render that as visibly "unknown," not blank or a dash.
-- There is **no barcode/tag field yet** — that's Aaron's subsystem and hasn't
-  been merged into this event shape. The GUI's Barcode Scanner panel checks
-  for a `tag_id` field and shows it automatically if/when it appears, and an
-  honest "not wired up yet" placeholder until then.
+- There is **no can/tag field yet** — that's Aaron's barcode subsystem and
+  hasn't been merged into this event shape. `gui/app.js`'s `canIndexFor()`
+  checks for an explicit `can` field first and only falls back to a hash of
+  the bag id (demo-only, to exercise the 4-quadrant layout) when it's
+  missing — wiring in the real field later is then automatic.
 
 ## Subsystem ownership
 
@@ -68,7 +79,9 @@ occurrence this project is meant to catch earlier.
 ## GUI (`gui/`)
 
 Plain HTML/CSS/JS, no build step — a kiosk-style monitor display (not
-handheld). Three subsystem panels (Ultrasonic Sensor, Barcode Scanner, Camera
-Snapshot) plus an Identification card (flight/destination + a color-coded
-match verdict) below. Starts idle on load and only advances on Play/Next —
-it never auto-plays on its own, so it can't be mistaken for a live feed.
+handheld), not a live sensor/barcode/camera readout. Four can quadrants (each
+a fixed categorical color, per the dataviz skill's palette rules) accumulate
+bag photos as they're routed in; a "Needs Attention" tray below holds bags
+without a confident can match. Double-click a tile to clear it once loaded.
+Starts idle on load and only advances on Play/Next — it never auto-plays on
+its own, so it can't be mistaken for a live feed.
