@@ -152,6 +152,7 @@ body {
 
 .stat-good .stat-value { color: var(--good); }
 .stat-flagged .stat-value { color: var(--warning); }
+.stat-accent .stat-value { color: var(--accent); }
 
 /* ---- Card base ---- */
 

@@ -196,9 +196,9 @@ function fillGrid(gridEl, items, { emptyText, statusChipFor = null }) {
 }
 
 function render() {
-  const visible = state.events
-    .slice(0, state.index + 1)
-    .filter((e) => !state.dismissed.has(e.id));
+  const scannedSoFar = state.events.slice(0, state.index + 1);
+  const visible = scannedSoFar.filter((e) => !state.dismissed.has(e.id));
+  const loaded = scannedSoFar.length - visible.length;
 
   const buckets = Array.from({ length: CAN_COUNT }, () => []);
   const attention = [];
@@ -221,9 +221,11 @@ function render() {
     statusChipFor: (event) => STATUS_INFO[event.status],
   });
 
-  el("stat-total").textContent = String(visible.length);
+  // Scanned = In a can + Needs attention + Loaded, always.
+  el("stat-total").textContent = String(scannedSoFar.length);
   el("stat-routed").textContent = String(visible.length - attention.length);
   el("stat-flagged").textContent = String(attention.length);
+  el("stat-loaded").textContent = String(loaded);
 }
 
 function goTo(index) {
