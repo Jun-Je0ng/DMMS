@@ -1,0 +1,42 @@
+[
+  {
+    "id": "bag_1",
+    "timestamp": "2026-08-27T14:21:19",
+    "status": "matched",
+    "flight_number": "QA298",
+    "destination": "SYD",
+    "photo_path": "captures/bag_20260827_142119_500978_bag_1.jpg"
+  },
+  {
+    "id": "bag_2",
+    "timestamp": "2026-08-27T14:21:20",
+    "status": "matched",
+    "flight_number": "LM219",
+    "destination": "CGK",
+    "photo_path": "captures/bag_20260827_142120_501545_bag_2.jpg"
+  },
+  {
+    "id": "bag_3",
+    "timestamp": "2026-08-27T14:21:21",
+    "status": "matched",
+    "flight_number": "SG334",
+    "destination": "SNG",
+    "photo_path": "captures/bag_20260827_142121_490307_bag_3.jpg"
+  },
+  {
+    "id": "bag_4",
+    "timestamp": "2026-08-27T14:21:23",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": "captures/bag_20260827_142123_112233_bag_4.jpg"
+  },
+  {
+    "id": "bag_5",
+    "timestamp": "2026-08-27T14:21:25",
+    "status": "duplicate",
+    "flight_number": "QA298",
+    "destination": "SYD",
+    "photo_path": "captures/bag_20260827_142125_998877_bag_5.jpg"
+  }
+]
