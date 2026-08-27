@@ -1,12 +1,18 @@
 # camera_subsystem
 
-Placeholder for Rian's camera capture code (RGB snapshot taken at the moment
-the laser/ultrasonic sensor detects baggage entering the MUL).
+Rian's sensor-trigger + camera-capture subsystem: on each trigger it takes a
+photo, assigns a flight from `flights.csv` (round-robin — this is a stand-in
+until barcode-based identification is merged in), and appends a row to
+`events_with_flights.csv`.
 
-Once wired up, this folder will hold the captured bag images. The `photo_path`
-field in event records (see `events_with_flights.csv` and `gui/mock-data.json`)
-is a path relative to this folder, e.g. `photo_path: "2026-08-27/bag_0042.jpg"`
-resolves to `python/camera_subsystem/2026-08-27/bag_0042.jpg`.
+```
+python3 main.py --mode simulate            # press Enter to simulate each bag
+python3 main.py --mode simulate --auto-interval 1 3   # fires on its own
+python3 main.py --mode serial --port /dev/ttyUSB0 --baud 9600   # real Arduino
+```
 
-Nothing here yet — this is a scaffold so the GUI and backend can agree on the
-path convention before the capture code lands.
+`mock_events.json` is a static fixture in the GUI's target shape —
+`{ id, timestamp, status, flight_number, destination, photo_path }` — used by
+`gui/` while `events_with_flights.csv` isn't being actively populated. There's
+no `tag_id`/barcode field yet; that's Aaron's barcode-scanner subsystem, not
+merged in here.

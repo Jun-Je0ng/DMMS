@@ -13,12 +13,14 @@ import threading
 import webbrowser
 
 PORT = 8080
-GUI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui")
+# Served from the repo root (not gui/) so the page can also reach
+# python/camera_subsystem/ for mock_events.json and captured photos.
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=GUI_DIR, **kwargs)
+        super().__init__(*args, directory=REPO_ROOT, **kwargs)
 
     def log_message(self, format, *args):
         pass
@@ -33,7 +35,7 @@ def main():
         print(f"Something else may already be using it — stop that, or edit PORT in {__file__}.")
         return
 
-    url = f"http://127.0.0.1:{PORT}/"
+    url = f"http://127.0.0.1:{PORT}/gui/"
     print(f"Serving MUL Baggage Verification GUI at {url}")
     print("Press Ctrl+C to stop.")
     threading.Timer(0.4, lambda: webbrowser.open(url)).start()
