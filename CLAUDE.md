@@ -21,40 +21,54 @@ occurrence this project is meant to catch earlier.
 
 ## Architecture
 
-- A simple backend holds events (one per bag) as they're produced by the
-  sensor/camera/scanner subsystems, with flight info joined in — persisted as
-  CSV (`events_with_flights.csv`) as the source of truth on disk.
+- `python/camera_subsystem/` (Rian) is the sensor + camera subsystem: a
+  trigger source (simulated, or a real Arduino over serial via `--mode serial
+  --port ... --baud ...`) fires, a photo is captured, a flight is currently
+  assigned round-robin from `flights.csv` (a stand-in until barcode-based
+  identification is merged in), and a row is appended to
+  `events_with_flights.csv` — the source of truth on disk.
+- Hardware connection (which serial port, which camera index) is a **backend
+  CLI concern**, handled by `main.py`'s arguments — not something the browser
+  GUI selects or connects to directly.
 - The GUI is a web page and cannot read that CSV directly, so events are
-  exposed to it as JSON with the same shape — a static mock file during GUI
-  development (`gui/mock-data.json`), later a small polling endpoint serving
-  live data. Swapping from mock to live is just changing the fetch URL.
-- `python/camera_subsystem/` holds captured bag images; `photo_path` in an
-  event record is relative to that folder.
+  exposed to it as JSON with the same shape — currently the static
+  `python/camera_subsystem/mock_events.json` fixture, later a small polling
+  endpoint serving live data off the CSV. Swapping from mock to live is just
+  changing `DATA_URL` in `gui/app.js`.
+- `python/camera_subsystem/captures/` (created at runtime, not committed)
+  holds captured bag images; `photo_path` in an event record is relative to
+  `python/camera_subsystem/`.
+- Run both together with `python3 run_gui.py` from the repo root — it serves
+  the whole repo (so the GUI can reach `python/camera_subsystem/`) and opens
+  the browser to `gui/`.
 
-## Event shape (provisional — see gui/mock-data.json)
+## Event shape (confirmed via python/camera_subsystem/mock_events.json)
 
-- `event_id`, `timestamp`, `tag_id` (decoded barcode, nullable), `flight_number`
-  (nullable), `destination` (nullable), `photo_path`, `status`
+- `id` (the sensor trigger's own id, e.g. `"bag_1"` — not a barcode), `timestamp`,
+  `status`, `flight_number` (nullable), `destination` (nullable), `photo_path`
 - `status` is one of: `matched`, `manual` (no scan found in the verification
   window — needs a handler to identify by hand), `duplicate` (second read of a
   tag already active on the loop), `unmatched_scan`, `ambiguous`. The last two
   aren't in the mock data yet but the GUI renders placeholder UI for them.
 - When `status` is `manual`, `flight_number`/`destination` are genuinely null —
   the GUI must render that as visibly "unknown," not blank or a dash.
-
-This field list is provisional and will be tightened once the real CSV schema
-from the sensor/scanner/camera subsystems is settled.
+- There is **no barcode/tag field yet** — that's Aaron's subsystem and hasn't
+  been merged into this event shape. The GUI's Barcode Scanner panel checks
+  for a `tag_id` field and shows it automatically if/when it appears, and an
+  honest "not wired up yet" placeholder until then.
 
 ## Subsystem ownership
 
-- Sensor — Ben
-- Camera (photo capture) — Rian
+- Sensor (Arduino hardware/sketch) — Ben
+- Sensor-trigger + camera-capture pipeline (consumes Ben's Arduino over
+  serial) — Rian (`python/camera_subsystem/`)
 - Barcode scanner — Aaron
 - GUI — Bill, Jarrel, Jun (this branch: `jun`, kiosk-monitor GUI in `gui/`)
 
 ## GUI (`gui/`)
 
 Plain HTML/CSS/JS, no build step — a kiosk-style monitor display (not
-handheld). Fetches `mock-data.json` and steps through events one at a time,
-showing the camera snapshot, decoded tag data, and a color-coded match verdict
-so a handler can decide whether to load the bag onto their assigned can.
+handheld). Three subsystem panels (Ultrasonic Sensor, Barcode Scanner, Camera
+Snapshot) plus an Identification card (flight/destination + a color-coded
+match verdict) below. Starts idle on load and only advances on Play/Next —
+it never auto-plays on its own, so it can't be mistaken for a live feed.

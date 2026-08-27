@@ -1,12 +1,10 @@
-// Kiosk display driver. Fetches mock-data.json today; once the sensor/camera/
-// scanner subsystems are wired up, this fetch swaps to a live polling
-// endpoint serving the same event shape — nothing else here changes.
-
-const DATA_URL = "mock-data.json";
-// photo_path is relative to python/camera_subsystem/ (see CLAUDE.md). Once the
-// camera subsystem serves images somewhere reachable from the browser, point
-// this at that base URL — nothing else in renderPhoto() needs to change.
-const IMAGE_BASE_URL = null; // e.g. "http://mul-host:8080/camera_subsystem/"
+// Kiosk display driver. Fetches Rian's mock_events.json today; once the
+// camera subsystem serves live events (from events_with_flights.csv), this
+// fetch swaps to that endpoint — nothing else here changes, as long as the
+// shape stays { id, timestamp, status, flight_number, destination, photo_path }.
+// Served via run_gui.py from the repo root, so paths are relative to that.
+const DATA_URL = "../python/camera_subsystem/mock_events.json";
+const IMAGE_BASE_URL = "../python/camera_subsystem/";
 const ADVANCE_MS = 4000;
 const SENSOR_PULSE_MS = 900;
 
@@ -122,7 +120,7 @@ function renderPhoto(photoPath) {
     img.classList.remove("loaded");
     fallback.style.display = "flex";
   };
-  img.src = IMAGE_BASE_URL ? IMAGE_BASE_URL + photoPath : photoPath;
+  img.src = IMAGE_BASE_URL + photoPath;
 }
 
 function renderStats() {
@@ -134,10 +132,10 @@ function renderStats() {
   el("stat-flagged").textContent = flagged;
 }
 
-function pulseSensor(timestamp) {
+function pulseSensor(event) {
   const dot = el("sensor-dot");
   el("sensor-state").textContent = "Baggage detected";
-  el("sensor-time").textContent = `Triggered ${formatTimestamp(timestamp)}`;
+  el("sensor-time").textContent = `${event.id} · triggered ${formatTimestamp(event.timestamp)}`;
   dot.classList.add("active");
   setTimeout(() => {
     dot.classList.remove("active");
@@ -145,29 +143,43 @@ function pulseSensor(timestamp) {
   }, SENSOR_PULSE_MS);
 }
 
+// tag_id isn't in the current event shape — barcode/tag pairing is Aaron's
+// subsystem and hasn't been merged into events_with_flights.csv yet. Once it
+// is (as a `tag_id` field), this renders it automatically; until then this
+// panel is honest that there's nothing to show rather than faking a value.
 function renderBarcode(event) {
-  const readFailed = event.status === "manual" || !event.tag_id;
   const valueNode = el("barcode-value");
-  if (readFailed) {
-    valueNode.textContent = "No read";
-    valueNode.classList.add("unknown");
-  } else {
+  if (event.tag_id) {
     valueNode.textContent = event.tag_id;
     valueNode.classList.remove("unknown");
+    el("barcode-read-state").textContent = "Read OK";
+  } else {
+    valueNode.textContent = "Not wired up yet";
+    valueNode.classList.add("unknown");
+    el("barcode-read-state").textContent = "Waiting on barcode scanner subsystem";
   }
-  el("barcode-read-state").textContent = readFailed
-    ? "Barcode unreadable — falls through to manual identification"
-    : "Read OK";
+}
+
+function renderIdle() {
+  el("sensor-state").textContent = "Idle";
+  el("sensor-time").textContent = "No bag detected yet";
+  renderBarcode({});
+  renderPhoto(null);
+  setField("field-flight", null);
+  setField("field-destination", null);
+  setField("field-timestamp", null);
+  renderVerdict(null);
+  renderStats();
 }
 
 function renderCurrent() {
   const event = state.events[state.index];
   if (!event) {
-    renderVerdict(null);
+    renderIdle();
     return;
   }
 
-  pulseSensor(event.timestamp);
+  pulseSensor(event);
   renderBarcode(event);
   renderPhoto(event.photo_path);
   setField("field-flight", event.flight_number, { unknownIfEmpty: event.status === "manual" });
@@ -191,6 +203,7 @@ function setPlaying(playing) {
   el("btn-play").textContent = playing ? "⏸" : "▶";
   clearInterval(state.timer);
   if (playing) {
+    if (state.index === -1) stepForward();
     state.timer = setInterval(stepForward, ADVANCE_MS);
   }
 }
@@ -203,8 +216,7 @@ fetch(DATA_URL)
   .then((r) => r.json())
   .then((events) => {
     state.events = events;
-    goTo(0);
-    setPlaying(false);
+    renderIdle();
   })
   .catch((err) => {
     el("sensor-state").textContent = "Failed to load mock data";
