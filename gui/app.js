@@ -1,12 +1,22 @@
-// Kiosk display driver. Fetches Rian's mock_events.json today; once the
-// camera subsystem serves live events (from events_with_flights.csv), this
-// fetch swaps to that endpoint — nothing else here changes, as long as the
-// shape stays { id, timestamp, status, flight_number, destination, photo_path }.
-// Served via run_gui.py from the repo root, so paths are relative to that.
-const DATA_URL = "../python/camera_subsystem/mock_events.json";
+// Kiosk display driver.
+//
+// Two modes, chosen by a URL param so the same page serves both:
+//   gui/               -> demo mode: steps through Rian's mock_events.json,
+//                          then keeps generating random bags once it runs out.
+//   gui/?live=1        -> live mode: polls python/camera_subsystem/live_events.json,
+//                          written by main.py as real bags come through. New
+//                          bags appear on their own; no Play/Next needed.
+// Both feeds use the same shape: { id, timestamp, status, flight_number,
+// destination, photo_path }, so nothing else in this file needs to know
+// which mode it's in beyond the branches below.
+const IS_LIVE = new URLSearchParams(location.search).has("live");
+const DATA_URL = IS_LIVE
+  ? "../python/camera_subsystem/live_events.json"
+  : "../python/camera_subsystem/mock_events.json";
 const FLIGHTS_URL = "../python/camera_subsystem/flights.csv";
 const IMAGE_BASE_URL = "../python/camera_subsystem/";
 const ADVANCE_MS = 2500;
+const LIVE_POLL_MS = 1500;
 const CAN_COUNT = 4;
 const CAN_LABELS = ["Can 1", "Can 2", "Can 3", "Can 4"];
 
@@ -252,23 +262,45 @@ function setPlaying(playing) {
   }
 }
 
-el("btn-prev").addEventListener("click", () => { setPlaying(false); stepBackward(); });
-el("btn-next").addEventListener("click", () => { setPlaying(false); stepForward(); });
-el("btn-play").addEventListener("click", () => setPlaying(!state.playing));
+// Live mode has no demo timeline to scrub or generate — bags just arrive.
+function setLiveEvents(events) {
+  state.events = events;
+  state.index = events.length - 1;
+  render();
+}
+
+function pollLive() {
+  fetch(DATA_URL)
+    .then((r) => r.json())
+    .then(setLiveEvents)
+    .catch((err) => console.error(err));
+}
 
 buildQuadrantShells();
 render();
 
-Promise.all([
-  fetch(DATA_URL).then((r) => r.json()),
-  fetch(FLIGHTS_URL).then((r) => r.text()).then(parseFlightsCsv),
-])
-  .then(([events, flights]) => {
-    state.events = events;
-    state.flights = flights;
-    state.seq = events.length;
-    render();
-  })
-  .catch((err) => {
-    console.error(err);
-  });
+if (IS_LIVE) {
+  document.body.classList.add("live-mode");
+  const banner = el("mode-banner");
+  banner.classList.add("live");
+  banner.innerHTML = '<strong>LIVE</strong>: polling <code>live_events.json</code> from main.py.';
+
+  pollLive();
+  setInterval(pollLive, LIVE_POLL_MS);
+} else {
+  el("btn-prev").addEventListener("click", () => { setPlaying(false); stepBackward(); });
+  el("btn-next").addEventListener("click", () => { setPlaying(false); stepForward(); });
+  el("btn-play").addEventListener("click", () => setPlaying(!state.playing));
+
+  Promise.all([
+    fetch(DATA_URL).then((r) => r.json()),
+    fetch(FLIGHTS_URL).then((r) => r.text()).then(parseFlightsCsv),
+  ])
+    .then(([events, flights]) => {
+      state.events = events;
+      state.flights = flights;
+      state.seq = events.length;
+      render();
+    })
+    .catch((err) => console.error(err));
+}
