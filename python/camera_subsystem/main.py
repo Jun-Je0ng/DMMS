@@ -158,12 +158,17 @@ def main():
 
     pairer = Pairer(pair_window=args.pair_window, loop_window=args.loop_window, flight_lookup=flight_lookup)
 
+    # Prefixes every id with a per-run stamp so restarting main.py never
+    # reissues an id like "bag_1" that the GUI already saw and dismissed in
+    # an earlier run -- the browser's dismissed-tile memory is keyed by id
+    # and has no other way to know a "new" bag_1 is actually a different bag.
+    run_id = datetime.now().strftime("%Y%m%d%H%M%S")
     seq = 0
 
     def log_unmatched_scan(ts: float, barcode: str):
         nonlocal seq
         seq += 1
-        bag_id = f"scan_{seq}"
+        bag_id = f"scan_{run_id}_{seq}"
         print(f"Unmatched scan (no bag nearby): {barcode}")
         log.record(id=bag_id, status="unmatched_scan", tag_id=barcode)
         live.add(id=bag_id, timestamp=iso(ts), status="unmatched_scan")
@@ -217,7 +222,7 @@ def main():
                 path = camera.capture(label=event.raw)
 
                 seq += 1
-                bag_id = f"bag_{seq}"
+                bag_id = f"bag_{run_id}_{seq}"
 
                 if path:
                     print(f"  Saved {path}")
