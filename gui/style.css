@@ -80,6 +80,15 @@ body {
   letter-spacing: 0.4px;
 }
 
+.mock-banner.live {
+  background: var(--good-bg);
+  border-color: var(--good);
+}
+
+.mock-banner.live strong {
+  color: var(--good);
+}
+
 .mock-banner code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: var(--text-primary);
@@ -408,6 +417,11 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-left: 4px;
+}
+
+/* Live mode has no demo timeline — bags just arrive on their own. */
+.live-mode .demo-controls {
+  visibility: hidden;
 }
 
 @media (max-width: 900px) {

@@ -31,57 +31,93 @@ occurrence this project is meant to catch earlier.
 
 ## Architecture
 
-- `python/camera_subsystem/` (Rian) is the sensor + camera subsystem: a
-  trigger source (simulated, or a real Arduino over serial via `--mode serial
-  --port ... --baud ...`) fires, a photo is captured, a flight is currently
-  assigned round-robin from `flights.csv` (a stand-in until barcode-based
-  identification is merged in), and a row is appended to
-  `events_with_flights.csv` — the source of truth on disk.
+Three subsystems, each built independently with no wiring between them, plus
+`python/camera_subsystem/main.py` as the integration point that ties them
+together:
+
+- `ultrasonic_subsystem/baggage_counter_HYSRF05.ino` (Ben) — Arduino sketch.
+  Over serial at 9600 baud it prints a line containing `"Baggage passed"`
+  each time a bag is confirmed under the sensor (see the sketch's own header
+  comment for wiring/mounting). `main.py --mode serial --port ... --baud ...
+  --trigger-token "Baggage passed"` reads this.
+- `barcode_subsystem/scanner_capture.py` (Aaron) — always-on, no trigger, no
+  relationship to the sensor. Keeps a hidden field focused so a USB
+  keyboard-wedge barcode scanner's reads land there, and prints
+  `SCAN,<timestamp>,<barcode>` per scan. `main.py` runs this as a subprocess
+  (`python/camera_subsystem/barcode_listener.py`) and reads its stdout.
+- `python/camera_subsystem/` (Rian) — sensor-trigger listener + camera
+  capture. A trigger fires (simulated, or the real Arduino), a photo is
+  taken after `--delay` seconds (belt travel time from sensor to camera).
+- **Pairing** (`python/camera_subsystem/pairing.py`, `Pairer`) is the piece
+  that turns "a photo was taken at time T" and "a barcode was read at time S"
+  — two independent timelines — into one bag identity, using proximity in
+  time as the only signal: a scan within `--pair-window` seconds of a
+  trigger is `matched`; none found is `manual`; more than one candidate is
+  `ambiguous`; the same tag re-matched within `--loop-window` seconds
+  (roughly one MUL loop, ~3 min per the site visit) is `duplicate`; a scan
+  that ages out with no trigger ever near it becomes a standalone
+  `unmatched_scan` event. Pure logic, no I/O — see `test_pairing.py`.
+  Flight/destination are still assigned round-robin from `flights.csv` on a
+  fresh match (no real tag→flight manifest exists yet).
 - Hardware connection (which serial port, which camera index) is a **backend
   CLI concern**, handled by `main.py`'s arguments — not something the browser
   GUI selects or connects to directly.
-- The GUI is a web page and cannot read that CSV directly, so events are
-  exposed to it as JSON with the same shape — currently the static
-  `python/camera_subsystem/mock_events.json` fixture, later a small polling
-  endpoint serving live data off the CSV. Swapping from mock to live is just
-  changing `DATA_URL` in `gui/app.js`.
-- `python/camera_subsystem/captures/` (created at runtime, not committed)
-  holds captured bag images; `photo_path` in an event record is relative to
+- `main.py` writes every event to `events_with_flights.csv` (via
+  `event_log.py`, gitignored — regenerated fresh each run) and, in the same
+  shape the GUI expects, to `live_events.json` (via `live_feed.py`, atomic
+  write so a poll never sees a half-written file, also gitignored).
+- The GUI is a web page and cannot read the CSV directly. `gui/app.js` has
+  two modes selected by URL: `gui/` is demo mode (steps through the static
+  `mock_events.json` fixture, then generates random bags once it runs out);
+  `gui/?live=1` polls `live_events.json` every 1.5s and shows new bags as
+  they arrive, no Play/Next needed.
+- `python/camera_subsystem/captures/` (created at runtime, gitignored) holds
+  captured bag images; `photo_path` in an event record is relative to
   `python/camera_subsystem/`.
-- Run both together with `python3 run_gui.py` from the repo root — it serves
-  the whole repo (so the GUI can reach `python/camera_subsystem/`) and opens
-  the browser to `gui/`.
+- Run the GUI with `python3 run_gui.py` from the repo root (serves the whole
+  repo so it can reach `python/camera_subsystem/`). Run the integrated
+  backend with `python3 main.py` from inside `python/camera_subsystem/` (see
+  `--help` for every flag — `--mode simulate` needs no hardware at all,
+  `--no-barcode` skips the scanner subprocess).
 
-## Event shape (confirmed via python/camera_subsystem/mock_events.json)
+## Event shape (python/camera_subsystem/mock_events.json and live_events.json)
 
-- `id` (the sensor trigger's own id, e.g. `"bag_1"` — not a barcode), `timestamp`,
-  `status`, `flight_number` (nullable), `destination` (nullable), `photo_path`
+- `id`, `timestamp`, `status`, `flight_number` (nullable), `destination`
+  (nullable), `photo_path` (nullable)
 - `status` is one of: `matched`, `manual` (no scan found in the verification
-  window — needs a handler to identify by hand), `duplicate` (second read of a
-  tag already active on the loop), `unmatched_scan`, `ambiguous`. The last two
-  aren't in the mock data yet but the GUI renders placeholder UI for them.
+  window — needs a handler to identify by hand), `duplicate` (second read of
+  a tag already active on the loop), `unmatched_scan` (a scan with no bag
+  ever near it), `ambiguous` (more than one possible match). All five are
+  produced by `Pairer` now; the GUI renders each with its own styling.
 - When `status` is `manual`, `flight_number`/`destination` are genuinely null —
   the GUI must render that as visibly "unknown," not blank or a dash.
-- There is **no can/tag field yet** — that's Aaron's barcode subsystem and
-  hasn't been merged into this event shape. `gui/app.js`'s `canIndexFor()`
-  checks for an explicit `can` field first and only falls back to a hash of
-  the bag id (demo-only, to exercise the 4-quadrant layout) when it's
-  missing — wiring in the real field later is then automatic.
+- There is **no can/tag field yet** in this shape — no tag→can manifest
+  exists. `gui/app.js`'s `canIndexFor()` checks for an explicit `can` field
+  first and only falls back to a hash of the bag id (demo-only, to exercise
+  the 4-quadrant layout) when it's missing — wiring in the real field later
+  is then automatic. `tag_id` (the decoded barcode) is in the CSV but not
+  yet threaded into the JSON shape or the GUI.
 
 ## Subsystem ownership
 
-- Sensor (Arduino hardware/sketch) — Ben
-- Sensor-trigger + camera-capture pipeline (consumes Ben's Arduino over
-  serial) — Rian (`python/camera_subsystem/`)
-- Barcode scanner — Aaron
+- Sensor (Arduino hardware/sketch) — Ben (`ultrasonic_subsystem/`)
+- Barcode scanner — Aaron (`barcode_subsystem/`)
+- Sensor-trigger + camera-capture + integration (pairing, event log, live
+  feed) — Rian (`python/camera_subsystem/`)
 - GUI — Bill, Jarrel, Jun (this branch: `jun`, kiosk-monitor GUI in `gui/`)
 
 ## GUI (`gui/`)
 
 Plain HTML/CSS/JS, no build step — a kiosk-style monitor display (not
-handheld), not a live sensor/barcode/camera readout. Four can quadrants (each
-a fixed categorical color, per the dataviz skill's palette rules) accumulate
-bag photos as they're routed in; a "Needs Attention" tray below holds bags
-without a confident can match. Double-click a tile to clear it once loaded.
-Starts idle on load and only advances on Play/Next — it never auto-plays on
-its own, so it can't be mistaken for a live feed.
+handheld). Four can quadrants (each a fixed categorical color, per the
+dataviz skill's palette rules) accumulate bag photos as they're routed in,
+using a balanced fill-grid per quadrant (1 bag fills the whole space, 2 split
+it evenly, 4 make a 2x2 — same approach a video-call grid uses) rather than
+small scrolling thumbnails. A "Needs Attention" tray below holds bags without
+a confident can match. Double-click a tile to clear it once loaded.
+
+Demo mode (`gui/`) starts idle and only advances on Play/Next, then runs
+forever once started (generates random bags after the mock fixture ends) —
+it never auto-plays on page load, so it can't be mistaken for a live feed.
+Live mode (`gui/?live=1`) has no demo controls; it polls and shows real bags
+as `main.py` produces them.

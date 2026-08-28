@@ -8,16 +8,23 @@ class EventLog:
 
     Logging every attempt, not just successful captures, is what lets the
     report quote a capture failure rate later.
+
+    Fields split into two groups: id/status/tag_id/flight_number/destination
+    are the pairing result (what the GUI cares about), trigger_source through
+    capture_path are the raw camera-side detail behind it.
     """
 
     FIELDS = [
+        "id",
         "timestamp",
+        "status",
+        "tag_id",
+        "flight_number",
+        "destination",
         "trigger_source",
         "trigger_raw",
         "capture_ok",
         "capture_path",
-        "flight_number",
-        "destination",
     ]
 
     def __init__(self, path: str = "events_with_flights.csv"):
@@ -31,22 +38,28 @@ class EventLog:
 
     def record(
         self,
-        trigger_source: str,
-        trigger_raw: str,
-        capture_ok: bool,
+        id: str,
+        status: str,
+        trigger_source: str = "",
+        trigger_raw: str = "",
+        capture_ok: bool = False,
         capture_path: str = "",
+        tag_id: str = "",
         flight_number: str = "",
         destination: str = "",
     ):
         self._writer.writerow(
             {
+                "id": id,
                 "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "status": status,
+                "tag_id": tag_id,
+                "flight_number": flight_number,
+                "destination": destination,
                 "trigger_source": trigger_source,
                 "trigger_raw": trigger_raw,
                 "capture_ok": capture_ok,
                 "capture_path": capture_path,
-                "flight_number": flight_number,
-                "destination": destination,
             }
         )
         self._file.flush()

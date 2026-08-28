@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+python/camera_subsystem/captures/
+python/camera_subsystem/live_events.json
+python/camera_subsystem/events_with_flights.csv
