@@ -56,9 +56,13 @@ together:
   `ambiguous`; the same tag re-matched within `--loop-window` seconds
   (roughly one MUL loop, ~3 min per the site visit) is `duplicate`; a scan
   that ages out with no trigger ever near it becomes a standalone
-  `unmatched_scan` event. Pure logic, no I/O — see `test_pairing.py`.
-  Flight/destination are still assigned round-robin from `flights.csv` on a
-  fresh match (no real tag→flight manifest exists yet).
+  `unmatched_scan` event. Pure logic, no I/O — see `test_pairing.py`. Flight
+  info on a fresh match comes from `Pairer`'s `flight_lookup(tag_id)`
+  callback: in `--barcode-mode simulate` the fake tag already encodes its
+  flight (`simulated_barcode.py`, see `test_simulated_barcode.py`); in
+  `--barcode-mode scanner` it's still round-robin from `flights.csv`, since
+  no real tag→flight manifest exists yet to look a real scanned tag up
+  against.
 - Hardware connection (which serial port, which camera index) is a **backend
   CLI concern**, handled by `main.py`'s arguments — not something the browser
   GUI selects or connects to directly.
@@ -77,8 +81,16 @@ together:
 - Run the GUI with `python3 run_gui.py` from the repo root (serves the whole
   repo so it can reach `python/camera_subsystem/`). Run the integrated
   backend with `python3 main.py` from inside `python/camera_subsystem/` (see
-  `--help` for every flag — `--mode simulate` needs no hardware at all,
-  `--no-barcode` skips the scanner subprocess).
+  `--help` for every flag). Both the sensor and the barcode scanner default
+  to needing no hardware at all: `--mode simulate` (sensor) and
+  `--barcode-mode simulate` (generates a fake tag like `KR712-MEL` per
+  trigger, via `simulated_barcode.py`) are the defaults. Swap to
+  `--mode serial --port ...` and `--barcode-mode scanner` once the real
+  Arduino and scanner are attached; `--barcode-mode off` skips barcode
+  identification entirely (every bag needs a manual check). Note the camera
+  step still uses a real `cv2.VideoCapture` regardless of these flags — with
+  no `--camera-index` override it's whatever's at index 0, e.g. a laptop's
+  built-in webcam, not a placeholder.
 
 ## Event shape (python/camera_subsystem/mock_events.json and live_events.json)
 
