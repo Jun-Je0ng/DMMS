@@ -305,6 +305,13 @@ function setPlaying(playing) {
 
 // Live mode has no demo timeline to scrub or generate — bags just arrive.
 function setLiveEvents(rawEvents) {
+  if (rawEvents.length < state.liveResetOffset) {
+    // main.py restarted -- live_events.json went back to (near-)empty, so
+    // any earlier manual reset point is stale and would otherwise eat the
+    // first few genuinely new bags of this new run.
+    state.liveResetOffset = 0;
+    state.dismissed = new Set();
+  }
   state.events = rawEvents.slice(state.liveResetOffset);
   state.index = state.events.length - 1;
   render();
