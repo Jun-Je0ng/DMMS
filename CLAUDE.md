@@ -50,19 +50,25 @@ together:
   taken after `--delay` seconds (belt travel time from sensor to camera).
 - **Pairing** (`python/camera_subsystem/pairing.py`, `Pairer`) is the piece
   that turns "a photo was taken at time T" and "a barcode was read at time S"
-  — two independent timelines — into one bag identity, using proximity in
-  time as the only signal: a scan within `--pair-window` seconds of a
-  trigger is `matched`; none found is `manual`; more than one candidate is
-  `ambiguous`; the same tag re-matched within `--loop-window` seconds
-  (roughly one MUL loop, ~3 min per the site visit) is `duplicate`; a scan
-  that ages out with no trigger ever near it becomes a standalone
-  `unmatched_scan` event. Pure logic, no I/O — see `test_pairing.py`. Flight
-  info on a fresh match comes from `Pairer`'s `flight_lookup(tag_id)`
-  callback: in `--barcode-mode simulate` the fake tag already encodes its
-  flight (`simulated_barcode.py`, see `test_simulated_barcode.py`); in
-  `--barcode-mode scanner` it's still round-robin from `flights.csv`, since
-  no real tag→flight manifest exists yet to look a real scanned tag up
-  against.
+  — two independent timelines — into one bag identity. The barcode scanner
+  itself has no trigger (it's always electrically on), but `--barcode-mode
+  scanner` makes it *behave* triggered: `main.py` calls
+  `wait_for_scan_since(trigger_ts, ...)`, which only counts scans at/after
+  the trigger (anything already pending from before is expired as an
+  orphan via `Pairer.take_since()` — it can't belong to a bag that hasn't
+  happened yet) and blocks up to `--pair-window` seconds for one to show up.
+  One candidate is `matched`; none is `manual`; more than one is `ambiguous`;
+  the same tag re-matched within `--loop-window` seconds (roughly one MUL
+  loop, ~3 min per the site visit) is `duplicate` instead of a fresh match.
+  `resolve_trigger()` (the older symmetric-window path, still used by
+  `--barcode-mode simulate` where the "scan" is submitted by `main.py`
+  itself) and `resolve_candidates()` (the tail both paths share) are pure
+  logic, no I/O — see `test_pairing.py`. Flight info on a fresh match comes
+  from `Pairer`'s `flight_lookup(tag_id)` callback: in `--barcode-mode
+  simulate` the fake tag already encodes its flight (`simulated_barcode.py`,
+  see `test_simulated_barcode.py`); in `--barcode-mode scanner` it's still
+  round-robin from `flights.csv`, since no real tag→flight manifest exists
+  yet to look a real scanned tag up against.
 - Hardware connection (which serial port, which camera index) is a **backend
   CLI concern**, handled by `main.py`'s arguments — not something the browser
   GUI selects or connects to directly.
@@ -82,20 +88,30 @@ together:
   repo so it can reach `python/camera_subsystem/`). Run the integrated
   backend with `python3 main.py` from inside `python/camera_subsystem/` (see
   `--help` for every flag). Defaults match "barcode scanner is real, Arduino
-  isn't wired up yet": `--mode simulate` (sensor — with no `--auto-interval`,
-  pressing Enter stands in for the sensor firing) and `--barcode-mode
-  scanner` (spawns the real `barcode_subsystem/scanner_capture.py`
-  subprocess) are the defaults, so `python3 main.py` with no flags is enough
-  once the real scanner is attached and a real tag is in front of it. Swap
-  to `--mode serial --port ...` once the real Arduino is wired up (needs
-  `pyserial` installed — not there by default; see `requirements.txt`).
-  `--barcode-mode simulate` generates a fake tag like `KR712-MEL` per
-  trigger via `simulated_barcode.py`, for testing with no scanner attached
-  at all; `--barcode-mode off` skips barcode identification entirely (every
-  bag needs a manual check). Note the camera
-  step still uses a real `cv2.VideoCapture` regardless of these flags — with
-  no `--camera-index` override it's whatever's at index 0, e.g. a laptop's
-  built-in webcam, not a placeholder.
+  isn't wired up yet, and it all runs on its own": `--mode simulate` (sensor)
+  fires autonomously every `--auto-interval` MIN–MAX seconds (default 4–10s,
+  no keypress) instead of Rian's original Enter-per-bag pacing, and
+  `--barcode-mode scanner` (spawns the real
+  `barcode_subsystem/scanner_capture.py` subprocess) is the default, so
+  `python3 main.py` with no flags is enough once the real scanner is
+  attached and a real tag is in front of it. Swap to `--mode serial --port
+  ...` once the real Arduino is wired up (needs `pyserial` installed — not
+  there by default; see `requirements.txt`). `--barcode-mode simulate`
+  generates a fake tag like `KR712-MEL` per trigger via
+  `simulated_barcode.py`, for testing with no scanner attached at all;
+  `--barcode-mode off` skips barcode identification entirely (every bag
+  needs a manual check). Note the camera step still uses a real
+  `cv2.VideoCapture` regardless of these flags — with no `--camera-index`
+  override it's whatever's at index 0, e.g. a laptop's built-in webcam, not
+  a placeholder.
+- `python3 diagnostics_view.py` (from inside `python/camera_subsystem/`,
+  while `main.py` is running separately) is a read-only OpenCV dashboard —
+  not the handler GUI — showing raw sensor/scanner activity as it happens
+  (idle/active indicator + a recent-event log per subsystem), by polling
+  `activity.json` (`activity_feed.py`, written by `main.py` on every trigger
+  and every scan, before pairing resolves anything). Never touches the
+  serial port, scanner, or camera itself, so it's safe to run alongside
+  `main.py` with no resource contention.
 
 ## Event shape (python/camera_subsystem/mock_events.json and live_events.json)
 

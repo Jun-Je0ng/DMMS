@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from activity_feed import ActivityFeed
 from barcode_listener import BarcodeListener
 from camera_capture import CameraCapture
 from event_log import EventLog
@@ -28,13 +29,33 @@ def load_flights() -> list:
 
 def build_trigger_source(args):
     if args.mode == "simulate":
-        interval = None if args.auto_interval is None else tuple(args.auto_interval)
-        return SimulatedTriggerSource(interval=interval)
+        return SimulatedTriggerSource(interval=tuple(args.auto_interval))
     return SerialTriggerSource(port=args.port, baud=args.baud, token=args.trigger_token)
 
 
 def iso(ts: float) -> str:
     return datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+
+
+def wait_for_scan_since(pairer: Pairer, trigger_ts: float, timeout: float, poll_interval: float = 0.1, settle: float = 0.2):
+    """
+    Blocks until a scan at/after trigger_ts shows up in the pairer (then
+    waits a brief settle period to catch a near-simultaneous second one, for
+    ambiguous detection) or `timeout` elapses either way. This is what makes
+    the barcode scanner "start scanning" from the sensor's point of view:
+    only scans from trigger_ts onward count for this bag, and this call
+    doesn't return until it knows one way or the other.
+    """
+    deadline = trigger_ts + timeout
+    found = False
+    while time.time() < deadline:
+        if pairer.candidates_since(trigger_ts):
+            found = True
+            break
+        time.sleep(poll_interval)
+    if found and settle > 0:
+        time.sleep(settle)
+    return pairer.take_since(trigger_ts)
 
 
 def main():
@@ -59,16 +80,18 @@ def main():
         "--auto-interval",
         type=float,
         nargs=2,
-        default=None,
+        default=[4.0, 10.0],
         metavar=("MIN", "MAX"),
-        help="Simulate mode: fire automatically at a random interval in seconds instead of waiting for Enter.",
+        help="Simulate mode: fire on its own at a random interval in this range (seconds), no keypress needed. "
+        "Default 4-10s.",
     )
     parser.add_argument("--camera-index", type=int, default=0)
     parser.add_argument(
         "--delay",
         type=float,
         default=0.5,
-        help="Seconds to wait after a trigger before taking the photo, to allow for belt travel from sensor to camera.",
+        help="Seconds to wait after resolving the barcode before taking the photo, to allow for belt travel "
+        "from the scanner to the camera.",
     )
     parser.add_argument("--save-dir", default="captures")
     parser.add_argument("--log-file", default="events_with_flights.csv")
@@ -76,6 +99,12 @@ def main():
         "--live-file",
         default="live_events.json",
         help="JSON file written after every event, in the shape gui/app.js polls for.",
+    )
+    parser.add_argument(
+        "--activity-file",
+        default="activity.json",
+        help="Rolling raw sensor/scanner log for diagnostics_view.py -- separate from --live-file, "
+        "which only holds resolved (paired) bags.",
     )
     parser.add_argument(
         "--barcode-mode",
@@ -90,7 +119,7 @@ def main():
         "--pair-window",
         type=float,
         default=4.0,
-        help="Seconds a scan and a trigger can be apart and still be considered the same bag.",
+        help="Seconds to wait for a barcode scan after a trigger before giving up on this bag (manual).",
     )
     parser.add_argument(
         "--loop-window",
@@ -109,6 +138,7 @@ def main():
     log = EventLog(args.log_file)
 
     live = LiveFeed(args.live_file)
+    activity = ActivityFeed(args.activity_file)
 
     save_dir_path = Path(args.save_dir)
     if save_dir_path.exists():
@@ -136,11 +166,14 @@ def main():
         log.record(id=bag_id, status="unmatched_scan", tag_id=barcode)
         live.add(id=bag_id, timestamp=iso(ts), status="unmatched_scan")
 
+    def on_raw_scan(ts: float, barcode: str):
+        activity.add("scan", ts, barcode)
+
     listener = None
     if args.barcode_mode == "scanner":
-        listener = BarcodeListener(pairer, on_unmatched=log_unmatched_scan)
+        listener = BarcodeListener(pairer, on_unmatched=log_unmatched_scan, on_scan=on_raw_scan)
         listener.start()
-        print("Barcode scanner subsystem started.")
+        print("Barcode scanner subsystem started -- waiting for the sensor to activate it per bag.")
     elif args.barcode_mode == "simulate":
         print("Barcode scanner simulated -- generating a fake tag per trigger, no hardware needed.")
     else:
@@ -152,33 +185,42 @@ def main():
             for event in trigger_source.events():
                 trigger_ts = time.time()
                 print(f"Trigger from {event.source}: {event.raw}")
+                activity.add("trigger", trigger_ts, event.raw)
 
+                # Sequential, per the real workflow: sensor fires, THEN the
+                # scanner is what we listen to (only scans from trigger_ts
+                # onward count for this bag), THEN the photo is taken after
+                # --delay seconds of belt travel from scanner to camera.
                 if sim_barcode is not None:
                     tag = sim_barcode.next_tag()
-                    # A little jitter so it isn't suspiciously exact, well
-                    # inside pair_window so it still reliably matches.
-                    scan_ts = trigger_ts + random.uniform(-0.5, 0.5)
+                    scan_ts = trigger_ts + random.uniform(-0.3, 0.3)
                     pairer.submit_scan(ts=scan_ts, barcode=tag)
-                    print(f"  Barcode: {tag}")
+                    activity.add("scan", scan_ts, tag)
+                    resolution = pairer.resolve_trigger(trigger_ts)
+                elif args.barcode_mode == "scanner":
+                    candidates, expired = wait_for_scan_since(pairer, trigger_ts, timeout=args.pair_window)
+                    for ts, barcode in expired:
+                        log_unmatched_scan(ts, barcode)
+                    resolution = pairer.resolve_candidates(trigger_ts, candidates)
+                else:
+                    resolution = pairer.resolve_trigger(trigger_ts)  # "off": nothing's ever submitted -> manual
+
+                if resolution.tag_id:
+                    print(f"  Barcode: {resolution.tag_id} ({resolution.status})")
+                else:
+                    print(f"  No barcode match ({resolution.status})")
 
                 if args.delay > 0:
                     time.sleep(args.delay)
                 path = camera.capture(label=event.raw)
 
-                # Resolved after the capture delay (not immediately at the
-                # trigger) so a scan that arrives during that window has
-                # already reached the pairer -- resolve_trigger still uses
-                # trigger_ts as the reference point, just called a little
-                # later to give pending scans more of a chance to show up.
-                resolution = pairer.resolve_trigger(trigger_ts)
-
                 seq += 1
                 bag_id = f"bag_{seq}"
 
                 if path:
-                    print(f"Saved {path} ({resolution.status}, tag={resolution.tag_id})")
+                    print(f"  Saved {path}")
                 else:
-                    print(f"Capture failed ({resolution.status}, tag={resolution.tag_id})")
+                    print("  Capture failed")
 
                 log.record(
                     id=bag_id,

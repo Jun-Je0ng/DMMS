@@ -70,6 +70,41 @@ class PairerTest(unittest.TestCase):
         self.assertEqual(stale, [(100.0, "TAG1")])
         self.assertEqual(p.pending_scans, [])
 
+    # -- Sequential pairing: "the scanner only counts once the sensor fires" --
+
+    def test_take_since_splits_candidates_from_earlier_orphans(self):
+        p = Pairer(pair_window=4.0)
+        p.submit_scan(ts=95.0, barcode="STALE")   # arrived before this trigger
+        p.submit_scan(ts=101.0, barcode="FRESH")  # arrived after
+        candidates, expired = p.take_since(ts=100.0)
+        self.assertEqual(candidates, [(101.0, "FRESH")])
+        self.assertEqual(expired, [(95.0, "STALE")])
+        self.assertEqual(p.pending_scans, [])  # both removed either way
+
+    def test_candidates_since_does_not_mutate(self):
+        p = Pairer(pair_window=4.0)
+        p.submit_scan(ts=101.0, barcode="FRESH")
+        seen = p.candidates_since(ts=100.0)
+        self.assertEqual(seen, [(101.0, "FRESH")])
+        self.assertEqual(p.pending_scans, [(101.0, "FRESH")])  # still pending
+
+    def test_resolve_candidates_matched(self):
+        p = Pairer(flight_lookup=flight_lookup)
+        r = p.resolve_candidates(ts=100.0, candidates=[(100.5, "TAG1")])
+        self.assertEqual(r.status, "matched")
+        self.assertEqual(r.tag_id, "TAG1")
+
+    def test_sequential_flow_end_to_end(self):
+        p = Pairer(pair_window=4.0, loop_window=200.0, flight_lookup=flight_lookup)
+        p.submit_scan(ts=95.0, barcode="OLD")     # leftover from before this bag
+        p.submit_scan(ts=101.5, barcode="TAG1")   # the real scan for this bag
+
+        candidates, expired = p.take_since(ts=100.0)
+        self.assertEqual(expired, [(95.0, "OLD")])
+        r = p.resolve_candidates(ts=100.0, candidates=candidates)
+        self.assertEqual(r.status, "matched")
+        self.assertEqual(r.tag_id, "TAG1")
+
 
 if __name__ == "__main__":
     unittest.main()

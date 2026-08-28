@@ -26,11 +26,13 @@ class BarcodeListener:
         self,
         pairer: Pairer,
         on_unmatched: Callable[[float, str], None],
+        on_scan: Optional[Callable[[float, str], None]] = None,
         script_path: Path = BARCODE_SCRIPT,
         sweep_interval: float = 2.0,
     ):
         self.pairer = pairer
         self.on_unmatched = on_unmatched
+        self.on_scan = on_scan  # fires the instant any scan is read, before pairing resolves it
         self.script_path = script_path
         self.sweep_interval = sweep_interval
         self._proc: Optional[subprocess.Popen] = None
@@ -63,7 +65,10 @@ class BarcodeListener:
                 # pairing uses local receive time so both sides of the
                 # comparison are on the same clock.
                 _, _scanner_ts, barcode = line.split(",", 2)
-                self.pairer.submit_scan(ts=time.time(), barcode=barcode)
+                ts = time.time()
+                self.pairer.submit_scan(ts=ts, barcode=barcode)
+                if self.on_scan:
+                    self.on_scan(ts, barcode)
 
     def _sweep_loop(self) -> None:
         while not self._stop.is_set():
