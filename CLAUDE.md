@@ -87,23 +87,25 @@ together:
 - Run the GUI with `python3 run_gui.py` from the repo root (serves the whole
   repo so it can reach `python/camera_subsystem/`). Run the integrated
   backend with `python3 main.py` from inside `python/camera_subsystem/` (see
-  `--help` for every flag). Defaults match "barcode scanner is real, Arduino
-  isn't wired up yet, and it all runs on its own": `--mode simulate` (sensor)
-  fires autonomously every `--auto-interval` MIN–MAX seconds (default 4–10s,
-  no keypress) instead of Rian's original Enter-per-bag pacing, and
-  `--barcode-mode scanner` (spawns the real
-  `barcode_subsystem/scanner_capture.py` subprocess) is the default, so
-  `python3 main.py` with no flags is enough once the real scanner is
-  attached and a real tag is in front of it. Swap to `--mode serial --port
-  ...` once the real Arduino is wired up (needs `pyserial` installed — not
-  there by default; see `requirements.txt`). `--barcode-mode simulate`
-  generates a fake tag like `KR712-MEL` per trigger via
-  `simulated_barcode.py`, for testing with no scanner attached at all;
-  `--barcode-mode off` skips barcode identification entirely (every bag
-  needs a manual check). Note the camera step still uses a real
-  `cv2.VideoCapture` regardless of these flags — with no `--camera-index`
-  override it's whatever's at index 0, e.g. a laptop's built-in webcam, not
-  a placeholder.
+  `--help` for every flag).
+  - `--mode` has **no default, on purpose** — `simulate` (stands in for the
+    sensor, fires on its own every `--auto-interval` MIN–MAX seconds,
+    default 4–10s, no Arduino needed) vs `serial` (reads the real Arduino,
+    needs `pyserial` installed — not there by default; see
+    `requirements.txt`) must be picked every run. This was a deliberate
+    fix: it used to default to `simulate`, which meant the pipeline could
+    look "alive" with zero hardware plugged in and no flags passed, which
+    is confusing/alarming rather than helpful.
+  - `--barcode-mode` defaults to `scanner` (spawns the real
+    `barcode_subsystem/scanner_capture.py` subprocess) since the real
+    scanner is built and working. `--barcode-mode simulate` generates a
+    fake tag like `KR712-MEL` per trigger via `simulated_barcode.py`, for
+    testing with no scanner attached at all; `--barcode-mode off` skips
+    barcode identification entirely (every bag needs a manual check).
+  - The camera step always uses a real `cv2.VideoCapture` regardless of
+    these flags — with no `--camera-index` override it's whatever's at
+    index 0, e.g. a laptop's built-in webcam, not a placeholder. There is
+    currently no way to run main.py without it actually opening a camera.
 - `python3 diagnostics_view.py` (from inside `python/camera_subsystem/`,
   while `main.py` is running separately) is a read-only OpenCV dashboard —
   not the handler GUI — showing raw sensor/scanner activity as it happens

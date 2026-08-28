@@ -65,8 +65,10 @@ def main():
     parser.add_argument(
         "--mode",
         choices=["simulate", "serial"],
-        default="simulate",
-        help="simulate: no Arduino needed. serial: read triggers from the Arduino.",
+        required=True,
+        help="Required, no default, on purpose: simulate stands in for the sensor and runs on its own "
+        "(no Arduino needed) -- it should never turn on just because you forgot to pick a mode. "
+        "serial: read real triggers from the Arduino.",
     )
     parser.add_argument("--port", default="/dev/ttyUSB0", help="Serial port for the Arduino (serial mode).")
     parser.add_argument("--baud", type=int, default=9600)
