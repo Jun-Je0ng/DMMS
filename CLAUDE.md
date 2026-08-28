@@ -45,14 +45,26 @@ together:
 - `barcode_subsystem/scanner_capture.py` (Aaron) — **genuinely always-on, no
   trigger, no relationship to the sensor, by design.** The physical scanner
   is handheld, trigger-pull hardware: nothing can "activate" or "deactivate"
-  it from software, a person has to squeeze it. Keeps a hidden field
-  focused so its reads land there, and prints `SCAN,<timestamp>,<barcode>`
-  per scan whenever that happens. `main.py` runs this as a subprocess
-  (`python/camera_subsystem/barcode_listener.py`) and reads its stdout.
-  (A version of this was briefly made to only "count" scans after a
-  trigger, to approximate "the sensor activates the scanner" — reverted,
-  since that's not physically how trigger-pull hardware works, and doesn't
-  match this file's own documented design.)
+  it from software, a person has to squeeze it. Prints
+  `SCAN,<timestamp>,<barcode>` per scan whenever that happens. `main.py`
+  runs this as a subprocess (`python/camera_subsystem/barcode_listener.py`)
+  and reads its stdout.
+  - Captures keystrokes **system-wide** via `pynput` (`burst_detector.py`
+    picks a scanner's rapid keystroke burst out of everything typed
+    anywhere on the machine, using inter-keystroke timing alone — see
+    `test_burst_detector.py`), not by keeping its own window focused. The
+    original version relied on window focus (a hidden always-focused
+    `tk.Entry`), which meant it only worked while its own small window
+    happened to be the active one — not actually "always on." Verified
+    working cross-process via a raw XTest injection test even under a
+    Wayland session (GNOME/Mutter's XWayland layer relays real hardware
+    keyboard events this way); a same-process `pynput.Controller` self-test
+    is not a reliable stand-in for this — it behaved differently and isn't
+    representative of how a real external USB device's keystrokes arrive.
+  - (A version of this was briefly made to only "count" scans after a
+    trigger, to approximate "the sensor activates the scanner" — reverted,
+    since that's not physically how trigger-pull hardware works, and didn't
+    match this file's own documented design.)
 - `python/camera_subsystem/` (Rian) — sensor-trigger listener + camera
   capture. A trigger fires (simulated, or the real Arduino), a photo is
   taken after `--delay` seconds (belt travel time from sensor to camera).
