@@ -52,6 +52,7 @@ class BarcodeListener:
             bufsize=1,
         )
         threading.Thread(target=self._read_loop, daemon=True).start()
+        threading.Thread(target=self._stderr_loop, daemon=True).start()
         threading.Thread(target=self._sweep_loop, daemon=True).start()
 
     def _read_loop(self) -> None:
@@ -69,6 +70,19 @@ class BarcodeListener:
                 self.pairer.submit_scan(ts=ts, barcode=barcode)
                 if self.on_scan:
                     self.on_scan(ts, barcode)
+        # stdout closed -- the subprocess exited. If we didn't ask it to stop,
+        # it crashed, and without this it would fail completely silently.
+        if not self._stop.is_set():
+            code = self._proc.poll()
+            print(f"[barcode scanner] subprocess exited unexpectedly (exit code {code}) "
+                  f"-- the scanner is NOT running anymore. See any error above.")
+
+    def _stderr_loop(self) -> None:
+        assert self._proc is not None and self._proc.stderr is not None
+        for line in self._proc.stderr:
+            line = line.rstrip()
+            if line:
+                print(f"[barcode scanner error] {line}")
 
     def _sweep_loop(self) -> None:
         while not self._stop.is_set():
