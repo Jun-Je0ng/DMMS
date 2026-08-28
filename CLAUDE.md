@@ -35,7 +35,9 @@ Three subsystems, each built independently with no wiring between them, plus
 `python/camera_subsystem/main.py` as the integration point that ties them
 together:
 
-- `ultrasonic_subsystem/baggage_counter_HYSRF05.ino` (Ben) — Arduino sketch.
+- `ultrasonic_subsystem/baggage_counter_HYSRF05/baggage_counter_HYSRF05.ino`
+  (Ben) — Arduino sketch, in its own folder matching the `.ino` name (the
+  convention `arduino-cli`/the Arduino IDE both require).
   Over serial at 9600 baud it prints a line containing `"Baggage passed"`
   each time a bag is confirmed under the sensor (see the sketch's own header
   comment for wiring/mounting). `main.py --mode serial --port ... --baud ...

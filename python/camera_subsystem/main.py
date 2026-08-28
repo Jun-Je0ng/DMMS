@@ -56,7 +56,7 @@ def main():
         "--trigger-token",
         default="Baggage passed",
         help="Substring the Arduino sketch prints on a confirmed detection "
-        "(see ultrasonic_subsystem/baggage_counter_HYSRF05.ino's Serial.print lines).",
+        "(see ultrasonic_subsystem/baggage_counter_HYSRF05/baggage_counter_HYSRF05.ino's Serial.print lines).",
     )
     parser.add_argument(
         "--auto-interval",
