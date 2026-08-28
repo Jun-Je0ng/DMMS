@@ -424,6 +424,27 @@ body {
   visibility: hidden;
 }
 
+.reset-button {
+  display: none;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reset-button:hover {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+.live-mode .reset-button {
+  display: inline-block;
+}
+
 @media (max-width: 900px) {
   .quadrants { grid-template-columns: 1fr; grid-template-rows: repeat(4, minmax(160px, auto)); }
 }

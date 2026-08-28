@@ -35,7 +35,7 @@ def main():
         print(f"Something else may already be using it — stop that, or edit PORT in {__file__}.")
         return
 
-    url = f"http://127.0.0.1:{PORT}/gui/"
+    url = f"http://127.0.0.1:{PORT}/gui/?live=1"
     print(f"Serving MUL Baggage Verification GUI at {url}")
     print("Press Ctrl+C to stop.")
     threading.Timer(0.4, lambda: webbrowser.open(url)).start()
