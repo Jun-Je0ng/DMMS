@@ -1,6 +1,7 @@
 import argparse
 import csv
 import itertools
+import random
 import shutil
 import time
 from datetime import datetime
@@ -11,17 +12,18 @@ from camera_capture import CameraCapture
 from event_log import EventLog
 from live_feed import LiveFeed
 from pairing import Pairer
+from simulated_barcode import SimulatedBarcodeSource
 from trigger_source import SerialTriggerSource, SimulatedTriggerSource
 
 FLIGHTS_FILE = Path(__file__).parent / "flights.csv"
 
 
-def load_flight_cycle():
+def load_flights() -> list:
     with open(FLIGHTS_FILE, newline="") as f:
         flights = list(csv.DictReader(f))
     if not flights:
         raise ValueError(f"{FLIGHTS_FILE} has no rows")
-    return itertools.cycle(flights)
+    return flights
 
 
 def build_trigger_source(args):
@@ -43,7 +45,7 @@ def main():
         "--mode",
         choices=["simulate", "serial"],
         default="simulate",
-        help="simulate: no hardware needed. serial: read triggers from the Arduino.",
+        help="simulate: no Arduino needed. serial: read triggers from the Arduino.",
     )
     parser.add_argument("--port", default="/dev/ttyUSB0", help="Serial port for the Arduino (serial mode).")
     parser.add_argument("--baud", type=int, default=9600)
@@ -76,9 +78,12 @@ def main():
         help="JSON file written after every event, in the shape gui/app.js polls for.",
     )
     parser.add_argument(
-        "--no-barcode",
-        action="store_true",
-        help="Run without the barcode scanner subsystem -- every bag falls through to a manual check.",
+        "--barcode-mode",
+        choices=["simulate", "scanner", "off"],
+        default="simulate",
+        help="simulate: no scanner needed, generates a fake tag like 'KR712-MEL' per trigger. "
+        "scanner: run the real barcode_subsystem scanner (needs the physical scanner attached). "
+        "off: no barcode subsystem at all -- every bag needs a manual check.",
     )
     parser.add_argument(
         "--pair-window",
@@ -95,7 +100,7 @@ def main():
     args = parser.parse_args()
 
     trigger_source = build_trigger_source(args)
-    flight_cycle = load_flight_cycle()
+    flights = load_flights()
 
     log_path = Path(args.log_file)
     if log_path.exists():
@@ -108,11 +113,17 @@ def main():
     if save_dir_path.exists():
         shutil.rmtree(save_dir_path)
 
-    pairer = Pairer(
-        pair_window=args.pair_window,
-        loop_window=args.loop_window,
-        flight_source=lambda: next(flight_cycle),
-    )
+    sim_barcode = SimulatedBarcodeSource(flights) if args.barcode_mode == "simulate" else None
+    if sim_barcode is not None:
+        flight_lookup = sim_barcode.lookup
+    else:
+        # No manifest exists yet to look a real tag up against, so this is a
+        # placeholder: whichever flight is next in rotation, regardless of
+        # which tag actually got scanned.
+        flight_cycle = itertools.cycle(flights)
+        flight_lookup = lambda _tag_id: next(flight_cycle)  # noqa: E731
+
+    pairer = Pairer(pair_window=args.pair_window, loop_window=args.loop_window, flight_lookup=flight_lookup)
 
     seq = 0
 
@@ -125,10 +136,12 @@ def main():
         live.add(id=bag_id, timestamp=iso(ts), status="unmatched_scan")
 
     listener = None
-    if not args.no_barcode:
+    if args.barcode_mode == "scanner":
         listener = BarcodeListener(pairer, on_unmatched=log_unmatched_scan)
         listener.start()
         print("Barcode scanner subsystem started.")
+    elif args.barcode_mode == "simulate":
+        print("Barcode scanner simulated -- generating a fake tag per trigger, no hardware needed.")
     else:
         print("Running without the barcode scanner -- every bag will need a manual check.")
 
@@ -138,6 +151,14 @@ def main():
             for event in trigger_source.events():
                 trigger_ts = time.time()
                 print(f"Trigger from {event.source}: {event.raw}")
+
+                if sim_barcode is not None:
+                    tag = sim_barcode.next_tag()
+                    # A little jitter so it isn't suspiciously exact, well
+                    # inside pair_window so it still reliably matches.
+                    scan_ts = trigger_ts + random.uniform(-0.5, 0.5)
+                    pairer.submit_scan(ts=scan_ts, barcode=tag)
+                    print(f"  Barcode: {tag}")
 
                 if args.delay > 0:
                     time.sleep(args.delay)

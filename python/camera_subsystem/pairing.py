@@ -47,10 +47,10 @@ class Pairer:
         duplicate; longer risks missing a real duplicate.
     """
 
-    def __init__(self, pair_window: float = 4.0, loop_window: float = 200.0, flight_source=None):
+    def __init__(self, pair_window: float = 4.0, loop_window: float = 200.0, flight_lookup=None):
         self.pair_window = pair_window
         self.loop_window = loop_window
-        self.flight_source = flight_source  # callable() -> {"flight_number", "destination"}, or None
+        self.flight_lookup = flight_lookup  # callable(tag_id) -> {"flight_number", "destination"}, or None
         self.pending_scans: List[Tuple[float, str]] = []
         self.active_tags: Dict[str, _ActiveTag] = {}
         self._lock = threading.Lock()
@@ -85,7 +85,7 @@ class Pairer:
                     flight_number=active.flight_number, destination=active.destination,
                 )
 
-            flight = self.flight_source() if self.flight_source else {}
+            flight = self.flight_lookup(barcode) if self.flight_lookup else {}
             flight_number = flight.get("flight_number")
             destination = flight.get("destination")
             self.active_tags[barcode] = _ActiveTag(flight_number, destination, last_seen=ts)
