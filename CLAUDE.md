@@ -89,13 +89,19 @@ together:
   backend with `python3 main.py` from inside `python/camera_subsystem/` (see
   `--help` for every flag).
   - `--mode` has **no default, on purpose** — `simulate` (stands in for the
-    sensor, fires on its own every `--auto-interval` MIN–MAX seconds,
-    default 4–10s, no Arduino needed) vs `serial` (reads the real Arduino,
-    needs `pyserial` installed — not there by default; see
-    `requirements.txt`) must be picked every run. This was a deliberate
-    fix: it used to default to `simulate`, which meant the pipeline could
-    look "alive" with zero hardware plugged in and no flags passed, which
-    is confusing/alarming rather than helpful.
+    sensor, no Arduino needed) vs `serial` (reads the real Arduino, needs
+    `pyserial` installed — not there by default; see `requirements.txt`)
+    must be picked every run. This was a deliberate fix: it used to default
+    to `simulate`, which meant the pipeline could look "alive" with zero
+    hardware plugged in and no flags passed.
+  - `--mode simulate` itself defaults to waiting for an Enter keypress per
+    bag — nothing fires on its own. This also went back and forth: it
+    briefly auto-fired every `--auto-interval` MIN–MAX seconds (default
+    4–10s) with no keypress, which turned out to cause the same "why is
+    this happening with nothing plugged in" confusion one level down, just
+    inside simulate mode instead of at the --mode default. Manual-only is
+    the default now; pass `--auto-interval MIN MAX` explicitly to opt into
+    the old auto-fire behavior for stress-testing.
   - `--barcode-mode` defaults to `scanner` (spawns the real
     `barcode_subsystem/scanner_capture.py` subprocess) since the real
     scanner is built and working. `--barcode-mode simulate` generates a

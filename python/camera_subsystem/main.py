@@ -29,7 +29,8 @@ def load_flights() -> list:
 
 def build_trigger_source(args):
     if args.mode == "simulate":
-        return SimulatedTriggerSource(interval=tuple(args.auto_interval))
+        interval = None if args.auto_interval is None else tuple(args.auto_interval)
+        return SimulatedTriggerSource(interval=interval)
     return SerialTriggerSource(port=args.port, baud=args.baud, token=args.trigger_token)
 
 
@@ -82,10 +83,11 @@ def main():
         "--auto-interval",
         type=float,
         nargs=2,
-        default=[4.0, 10.0],
+        default=None,
         metavar=("MIN", "MAX"),
-        help="Simulate mode: fire on its own at a random interval in this range (seconds), no keypress needed. "
-        "Default 4-10s.",
+        help="Simulate mode: with this unset (default), nothing fires until you press Enter in this terminal -- "
+        "one trigger per press, on purpose, so simulate mode never produces a bag you didn't ask for. "
+        "Pass MIN MAX to opt into firing on its own at a random interval in that range instead.",
     )
     parser.add_argument("--camera-index", type=int, default=0)
     parser.add_argument(
