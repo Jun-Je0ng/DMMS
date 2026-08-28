@@ -17,6 +17,7 @@ const FLIGHTS_URL = "../python/camera_subsystem/flights.csv";
 const IMAGE_BASE_URL = "../python/camera_subsystem/";
 const ADVANCE_MS = 2500;
 const LIVE_POLL_MS = 1500;
+const ZOOM_CLICK_DELAY_MS = 220;
 const CAN_COUNT = 4;
 const CAN_LABELS = ["Can 1", "Can 2", "Can 3", "Can 4"];
 
@@ -146,7 +147,7 @@ function buildQuadrantShells() {
 function makeTile(event, { statusChip = null } = {}) {
   const tile = document.createElement("div");
   tile.className = "tile";
-  tile.title = "Double-click to clear once loaded";
+  tile.title = "Click to zoom · double-click to clear once loaded";
 
   const photo = document.createElement("div");
   photo.className = "tile-photo";
@@ -178,12 +179,36 @@ function makeTile(event, { statusChip = null } = {}) {
   }
   tile.appendChild(caption);
 
+  // A double-click fires two click events before dblclick -- delay opening
+  // the zoom view just long enough to cancel it if a second click follows,
+  // so double-clicking dismisses a tile without also flashing the zoom open.
+  let clickTimer = null;
+  tile.addEventListener("click", () => {
+    if (!event.photo_path) return;
+    clearTimeout(clickTimer);
+    clickTimer = setTimeout(() => openZoom(event), ZOOM_CLICK_DELAY_MS);
+  });
+
   tile.addEventListener("dblclick", () => {
+    clearTimeout(clickTimer);
     state.dismissed.add(event.id);
     render();
   });
 
   return tile;
+}
+
+function openZoom(event) {
+  const img = el("zoom-image");
+  img.src = IMAGE_BASE_URL + event.photo_path;
+  img.alt = `Snapshot of ${event.id || "bag"}`;
+  const sub = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
+  el("zoom-caption").textContent = `${event.flight_number || "Unknown flight"} · ${sub}`;
+  el("zoom-overlay").hidden = false;
+}
+
+function closeZoom() {
+  el("zoom-overlay").hidden = true;
 }
 
 function fillGrid(gridEl, items, { emptyText, statusChipFor = null }) {
@@ -275,6 +300,11 @@ function pollLive() {
     .then(setLiveEvents)
     .catch((err) => console.error(err));
 }
+
+el("zoom-overlay").addEventListener("click", closeZoom);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeZoom();
+});
 
 buildQuadrantShells();
 render();
