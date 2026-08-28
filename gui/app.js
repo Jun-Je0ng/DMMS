@@ -56,6 +56,11 @@ const state = {
   timer: null,
   dismissed: new Set(),
   seq: 0,
+  // How many of the raw events from live_events.json (which only ever grows,
+  // main.py appends forever within a run) to skip. Reset sets this to "all
+  // of them, as of right now" so stats genuinely go back to zero instead of
+  // just clearing the board while still counting old bags as history.
+  liveResetOffset: 0,
 };
 
 function formatTime(iso) {
@@ -299,9 +304,9 @@ function setPlaying(playing) {
 }
 
 // Live mode has no demo timeline to scrub or generate — bags just arrive.
-function setLiveEvents(events) {
-  state.events = events;
-  state.index = events.length - 1;
+function setLiveEvents(rawEvents) {
+  state.events = rawEvents.slice(state.liveResetOffset);
+  state.index = state.events.length - 1;
   render();
 }
 
@@ -326,11 +331,17 @@ if (IS_LIVE) {
   banner.classList.add("live");
   banner.innerHTML = '<strong>LIVE</strong>: polling <code>live_events.json</code> from main.py.';
 
-  // Clears everything currently shown without needing to restart main.py or
-  // reload the page -- marks every bag seen so far as dismissed. New bags
-  // (from the next poll onward) still show up normally afterward.
+  // Clears everything currently shown, and the stats, without needing to
+  // restart main.py or reload the page. live_events.json only ever grows
+  // (main.py appends forever within a run), so this permanently skips
+  // everything raw-index-wise up to right now -- not just marking it
+  // dismissed, which would still count toward Scanned/Loaded forever.
+  // New bags from the next poll onward show up and count normally.
   el("btn-reset").addEventListener("click", () => {
-    state.events.forEach((e) => state.dismissed.add(e.id));
+    state.liveResetOffset += state.events.length;
+    state.events = [];
+    state.dismissed = new Set();
+    state.index = -1;
     render();
   });
 

@@ -11,8 +11,11 @@ Read-only: it never touches the serial port, the barcode scanner, or the
 camera. It just polls activity.json, which main.py writes as events happen,
 so running this alongside main.py is safe -- no resource contention.
 
-Run:  python3 diagnostics_view.py     (while main.py is running separately)
-Quit: q or Esc in the window.
+Run:   python3 diagnostics_view.py     (while main.py is running separately)
+Quit:  q or Esc in the window.
+Reset: r -- clears the counts and log shown here (activity.json itself,
+       and main.py's own state, are untouched; this only affects what
+       this window displays).
 """
 
 import argparse
@@ -98,8 +101,14 @@ def main():
     window = "DMMS Diagnostics"
     cv2.namedWindow(window, cv2.WINDOW_AUTOSIZE)
 
+    # activity.json only ever grows while main.py runs. reset_at lets this
+    # window show "since I last cleared it" without touching that file or
+    # main.py's own state -- purely a local display filter.
+    reset_at = 0.0
+
     while True:
         entries = load_activity(Path(args.activity_file))
+        entries = [e for e in entries if e["ts"] > reset_at]
         now = time.time()
 
         canvas = np.empty((height, width, 3), dtype=np.uint8)
@@ -108,7 +117,7 @@ def main():
         cv2.putText(canvas, "DMMS Diagnostics", (24, 38), FONT, 0.85, TEXT_PRIMARY, 1, cv2.LINE_AA)
         cv2.putText(
             canvas,
-            "Raw sensor + scanner activity -- not the handler GUI. q / Esc to quit.",
+            "Raw sensor + scanner activity -- not the handler GUI. q / Esc to quit, r to reset.",
             (24, 60), FONT, 0.5, TEXT_MUTED, 1, cv2.LINE_AA,
         )
 
@@ -131,6 +140,8 @@ def main():
         key = cv2.waitKey(max(1, int(args.poll_interval * 1000))) & 0xFF
         if key in (27, ord("q")):
             break
+        if key == ord("r"):
+            reset_at = time.time()
         if cv2.getWindowProperty(window, cv2.WND_PROP_VISIBLE) < 1:
             break
 
