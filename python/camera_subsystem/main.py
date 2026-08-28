@@ -80,9 +80,10 @@ def main():
     parser.add_argument(
         "--barcode-mode",
         choices=["simulate", "scanner", "off"],
-        default="simulate",
-        help="simulate: no scanner needed, generates a fake tag like 'KR712-MEL' per trigger. "
-        "scanner: run the real barcode_subsystem scanner (needs the physical scanner attached). "
+        default="scanner",
+        help="scanner: run the real barcode_subsystem scanner (needs the physical scanner attached). "
+        "simulate: no scanner needed, generates a fake tag like 'KR712-MEL' per trigger, for testing "
+        "without hardware. "
         "off: no barcode subsystem at all -- every bag needs a manual check.",
     )
     parser.add_argument(
