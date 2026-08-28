@@ -156,8 +156,19 @@ function makeTile(event, { statusChip = null } = {}) {
   if (event.photo_path) {
     const img = document.createElement("img");
     img.alt = `Snapshot of ${event.id || "bag"}`;
-    img.onload = () => img.classList.add("loaded");
-    img.onerror = () => img.classList.remove("loaded");
+    // The fallback camera icon sits behind the img; with object-fit:
+    // contain, a photo whose aspect ratio doesn't match the tile leaves a
+    // letterboxed gap the icon would otherwise show through, so hide it
+    // outright once a real photo is actually showing.
+    const fallbackIcon = photo.querySelector("svg");
+    img.onload = () => {
+      img.classList.add("loaded");
+      if (fallbackIcon) fallbackIcon.style.display = "none";
+    };
+    img.onerror = () => {
+      img.classList.remove("loaded");
+      if (fallbackIcon) fallbackIcon.style.display = "";
+    };
     img.src = IMAGE_BASE_URL + event.photo_path;
     photo.appendChild(img);
   }
