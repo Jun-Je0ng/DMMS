@@ -40,33 +40,34 @@ together:
   each time a bag is confirmed under the sensor (see the sketch's own header
   comment for wiring/mounting). `main.py --mode serial --port ... --baud ...
   --trigger-token "Baggage passed"` reads this.
-- `barcode_subsystem/scanner_capture.py` (Aaron) — always-on, no trigger, no
-  relationship to the sensor. Keeps a hidden field focused so a USB
-  keyboard-wedge barcode scanner's reads land there, and prints
-  `SCAN,<timestamp>,<barcode>` per scan. `main.py` runs this as a subprocess
+- `barcode_subsystem/scanner_capture.py` (Aaron) — **genuinely always-on, no
+  trigger, no relationship to the sensor, by design.** The physical scanner
+  is handheld, trigger-pull hardware: nothing can "activate" or "deactivate"
+  it from software, a person has to squeeze it. Keeps a hidden field
+  focused so its reads land there, and prints `SCAN,<timestamp>,<barcode>`
+  per scan whenever that happens. `main.py` runs this as a subprocess
   (`python/camera_subsystem/barcode_listener.py`) and reads its stdout.
+  (A version of this was briefly made to only "count" scans after a
+  trigger, to approximate "the sensor activates the scanner" — reverted,
+  since that's not physically how trigger-pull hardware works, and doesn't
+  match this file's own documented design.)
 - `python/camera_subsystem/` (Rian) — sensor-trigger listener + camera
   capture. A trigger fires (simulated, or the real Arduino), a photo is
   taken after `--delay` seconds (belt travel time from sensor to camera).
 - **Pairing** (`python/camera_subsystem/pairing.py`, `Pairer`) is the piece
-  that turns "a photo was taken at time T" and "a barcode was read at time S"
-  — two independent timelines — into one bag identity. The barcode scanner
-  itself has no trigger (it's always electrically on), but `--barcode-mode
-  scanner` makes it *behave* triggered: `main.py` calls
-  `wait_for_scan_since(trigger_ts, ...)`, which only counts scans at/after
-  the trigger (anything already pending from before is expired as an
-  orphan via `Pairer.take_since()` — it can't belong to a bag that hasn't
-  happened yet) and blocks up to `--pair-window` seconds for one to show up.
-  One candidate is `matched`; none is `manual`; more than one is `ambiguous`;
-  the same tag re-matched within `--loop-window` seconds (roughly one MUL
-  loop, ~3 min per the site visit) is `duplicate` instead of a fresh match.
-  `resolve_trigger()` (the older symmetric-window path, still used by
-  `--barcode-mode simulate` where the "scan" is submitted by `main.py`
-  itself) and `resolve_candidates()` (the tail both paths share) are pure
-  logic, no I/O — see `test_pairing.py`. Flight info on a fresh match comes
-  from `Pairer`'s `flight_lookup(tag_id)` callback: in `--barcode-mode
-  simulate` the fake tag already encodes its flight (`simulated_barcode.py`,
-  see `test_simulated_barcode.py`); in `--barcode-mode scanner` it's still
+  that turns "a photo was taken at time T" and "a barcode was read at time
+  S" — two independent timelines with no wiring between them — into one bag
+  identity, using proximity in time as the only signal: `resolve_trigger()`
+  matches a scan within `--pair-window` seconds of the trigger, **either
+  direction** (a handler might scan the tag just before or just after the
+  bag reaches the sensor). One candidate is `matched`; none is `manual`;
+  more than one is `ambiguous`; the same tag re-matched within
+  `--loop-window` seconds (roughly one MUL loop, ~3 min per the site visit)
+  is `duplicate` instead of a fresh match. Pure logic, no I/O — see
+  `test_pairing.py`. Flight info on a fresh match comes from `Pairer`'s
+  `flight_lookup(tag_id)` callback: in `--barcode-mode simulate` the fake
+  tag already encodes its flight (`simulated_barcode.py`, see
+  `test_simulated_barcode.py`); in `--barcode-mode scanner` it's still
   round-robin from `flights.csv`, since no real tag→flight manifest exists
   yet to look a real scanned tag up against.
 - Hardware connection (which serial port, which camera index) is a **backend

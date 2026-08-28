@@ -38,27 +38,6 @@ def iso(ts: float) -> str:
     return datetime.fromtimestamp(ts).isoformat(timespec="seconds")
 
 
-def wait_for_scan_since(pairer: Pairer, trigger_ts: float, timeout: float, poll_interval: float = 0.1, settle: float = 0.2):
-    """
-    Blocks until a scan at/after trigger_ts shows up in the pairer (then
-    waits a brief settle period to catch a near-simultaneous second one, for
-    ambiguous detection) or `timeout` elapses either way. This is what makes
-    the barcode scanner "start scanning" from the sensor's point of view:
-    only scans from trigger_ts onward count for this bag, and this call
-    doesn't return until it knows one way or the other.
-    """
-    deadline = trigger_ts + timeout
-    found = False
-    while time.time() < deadline:
-        if pairer.candidates_since(trigger_ts):
-            found = True
-            break
-        time.sleep(poll_interval)
-    if found and settle > 0:
-        time.sleep(settle)
-    return pairer.take_since(trigger_ts)
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="DMMS integration: ultrasonic sensor + barcode scanner + camera -> events for the GUI."
@@ -182,7 +161,9 @@ def main():
     if args.barcode_mode == "scanner":
         listener = BarcodeListener(pairer, on_unmatched=log_unmatched_scan, on_scan=on_raw_scan)
         listener.start()
-        print("Barcode scanner subsystem started -- waiting for the sensor to activate it per bag.")
+        print("Barcode scanner subsystem started -- always on, per its own design (handheld, trigger-pull "
+              "hardware can't be activated by software). Scan a tag within --pair-window seconds of a "
+              "trigger, before or after, and it'll pair.")
     elif args.barcode_mode == "simulate":
         print("Barcode scanner simulated -- generating a fake tag per trigger, no hardware needed.")
     else:
@@ -196,23 +177,19 @@ def main():
                 print(f"Trigger from {event.source}: {event.raw}")
                 activity.add("trigger", trigger_ts, event.raw)
 
-                # Sequential, per the real workflow: sensor fires, THEN the
-                # scanner is what we listen to (only scans from trigger_ts
-                # onward count for this bag), THEN the photo is taken after
-                # --delay seconds of belt travel from scanner to camera.
+                # The scanner is always on and independent of the sensor
+                # (handheld, trigger-pull hardware -- there's no way to
+                # "activate" it from software), so a scan can land slightly
+                # before or after the trigger. resolve_trigger() matches
+                # whatever's within --pair-window seconds either direction;
+                # for --barcode-mode scanner, the real scan already arrived
+                # (or hasn't) via BarcodeListener's background thread.
                 if sim_barcode is not None:
                     tag = sim_barcode.next_tag()
                     scan_ts = trigger_ts + random.uniform(-0.3, 0.3)
                     pairer.submit_scan(ts=scan_ts, barcode=tag)
                     activity.add("scan", scan_ts, tag)
-                    resolution = pairer.resolve_trigger(trigger_ts)
-                elif args.barcode_mode == "scanner":
-                    candidates, expired = wait_for_scan_since(pairer, trigger_ts, timeout=args.pair_window)
-                    for ts, barcode in expired:
-                        log_unmatched_scan(ts, barcode)
-                    resolution = pairer.resolve_candidates(trigger_ts, candidates)
-                else:
-                    resolution = pairer.resolve_trigger(trigger_ts)  # "off": nothing's ever submitted -> manual
+                resolution = pairer.resolve_trigger(trigger_ts)
 
                 if resolution.tag_id:
                     print(f"  Barcode: {resolution.tag_id} ({resolution.status})")

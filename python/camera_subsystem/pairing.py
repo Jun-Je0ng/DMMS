@@ -62,11 +62,11 @@ class Pairer:
 
     def resolve_trigger(self, ts: float) -> Resolution:
         """
-        Call once a photo has been captured for a bag detected at `ts`, when
-        the scan could have arrived slightly before OR after the trigger
-        (e.g. a simulated scan submitted around the same instant). For a real
-        scanner that should only start counting once the sensor fires, use
-        take_since()/resolve_candidates() instead -- see main.py.
+        Call once a photo has been captured for a bag detected at `ts`. The
+        scanner is always on and independent of the sensor (handheld,
+        trigger-pull hardware -- nothing can "activate" it from software), so
+        a matching scan can land slightly before OR after the trigger; this
+        matches whatever's within pair_window seconds either direction.
         """
         with self._lock:
             candidates = [p for p in self.pending_scans if abs(p[0] - ts) <= self.pair_window]
@@ -74,32 +74,12 @@ class Pairer:
                 self.pending_scans.remove(c)
         return self.resolve_candidates(ts, candidates)
 
-    def candidates_since(self, ts: float) -> List[Tuple[float, str]]:
-        """Non-mutating peek at scans that arrived at/after `ts` -- for a caller polling to decide when to stop waiting."""
-        with self._lock:
-            return [p for p in self.pending_scans if p[0] >= ts]
-
-    def take_since(self, ts: float) -> Tuple[List[Tuple[float, str]], List[Tuple[float, str]]]:
-        """
-        Remove and split pending scans by `ts`: those at/after it (candidates
-        for the trigger at `ts`) and those strictly before it (orphaned --
-        they arrived before this trigger "activated" the scanner, so they
-        can't belong to it, and there's no earlier trigger left to claim them).
-        Returns (candidates, expired).
-        """
-        with self._lock:
-            candidates = [p for p in self.pending_scans if p[0] >= ts]
-            expired = [p for p in self.pending_scans if p[0] < ts]
-            for p in candidates + expired:
-                self.pending_scans.remove(p)
-            return candidates, expired
-
     def resolve_candidates(self, ts: float, candidates: List[Tuple[float, str]]) -> Resolution:
         """
         Decide matched/manual/duplicate/ambiguous from a set of candidate
-        scans already picked out for the trigger at `ts` (by resolve_trigger
-        or by a caller using take_since). Candidates should already be
-        removed from pending_scans -- this only touches active_tags.
+        scans already picked out for the trigger at `ts` (by resolve_trigger).
+        Candidates should already be removed from pending_scans -- this only
+        touches active_tags.
         """
         with self._lock:
             if not candidates:
