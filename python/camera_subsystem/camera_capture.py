@@ -17,6 +17,18 @@ class CameraCapture:
         if not self._cap.isOpened():
             raise RuntimeError(f"Could not open camera index {self.camera_index}")
 
+        # Request the camera's maximum resolution. Many USB webcams only
+        # reach their highest resolutions in a compressed format (MJPG) --
+        # raw/YUYV is often capped much lower by USB bandwidth -- so set MJPG
+        # first, then ask for an intentionally oversized frame size; V4L2
+        # clamps both to whatever the camera actually supports.
+        self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 99999)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 99999)
+        actual_w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print(f"Camera opened at {actual_w}x{actual_h}")
+
     def close(self):
         if self._cap is not None:
             self._cap.release()

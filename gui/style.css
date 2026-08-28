@@ -305,7 +305,7 @@ body {
 .tile-photo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: none;
 }
 
@@ -426,4 +426,39 @@ body {
 
 @media (max-width: 900px) {
   .quadrants { grid-template-columns: 1fr; grid-template-rows: repeat(4, minmax(160px, auto)); }
+}
+
+/* ---- Zoom overlay: click a tile's photo to see it large ---- */
+
+.zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 40px;
+  cursor: zoom-out;
+}
+
+.zoom-overlay[hidden] {
+  display: none;
+}
+
+.zoom-overlay img {
+  max-width: 100%;
+  max-height: calc(100% - 60px);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.zoom-caption {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
 }
