@@ -326,6 +326,14 @@ if (IS_LIVE) {
   banner.classList.add("live");
   banner.innerHTML = '<strong>LIVE</strong>: polling <code>live_events.json</code> from main.py.';
 
+  // Clears everything currently shown without needing to restart main.py or
+  // reload the page -- marks every bag seen so far as dismissed. New bags
+  // (from the next poll onward) still show up normally afterward.
+  el("btn-reset").addEventListener("click", () => {
+    state.events.forEach((e) => state.dismissed.add(e.id));
+    render();
+  });
+
   pollLive();
   setInterval(pollLive, LIVE_POLL_MS);
 } else {
