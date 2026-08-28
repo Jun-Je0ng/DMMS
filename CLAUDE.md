@@ -81,13 +81,18 @@ together:
 - Run the GUI with `python3 run_gui.py` from the repo root (serves the whole
   repo so it can reach `python/camera_subsystem/`). Run the integrated
   backend with `python3 main.py` from inside `python/camera_subsystem/` (see
-  `--help` for every flag). Both the sensor and the barcode scanner default
-  to needing no hardware at all: `--mode simulate` (sensor) and
-  `--barcode-mode simulate` (generates a fake tag like `KR712-MEL` per
-  trigger, via `simulated_barcode.py`) are the defaults. Swap to
-  `--mode serial --port ...` and `--barcode-mode scanner` once the real
-  Arduino and scanner are attached; `--barcode-mode off` skips barcode
-  identification entirely (every bag needs a manual check). Note the camera
+  `--help` for every flag). Defaults match "barcode scanner is real, Arduino
+  isn't wired up yet": `--mode simulate` (sensor — with no `--auto-interval`,
+  pressing Enter stands in for the sensor firing) and `--barcode-mode
+  scanner` (spawns the real `barcode_subsystem/scanner_capture.py`
+  subprocess) are the defaults, so `python3 main.py` with no flags is enough
+  once the real scanner is attached and a real tag is in front of it. Swap
+  to `--mode serial --port ...` once the real Arduino is wired up (needs
+  `pyserial` installed — not there by default; see `requirements.txt`).
+  `--barcode-mode simulate` generates a fake tag like `KR712-MEL` per
+  trigger via `simulated_barcode.py`, for testing with no scanner attached
+  at all; `--barcode-mode off` skips barcode identification entirely (every
+  bag needs a manual check). Note the camera
   step still uses a real `cv2.VideoCapture` regardless of these flags — with
   no `--camera-index` override it's whatever's at index 0, e.g. a laptop's
   built-in webcam, not a placeholder.
