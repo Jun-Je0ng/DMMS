@@ -117,6 +117,12 @@ body {
   background: linear-gradient(180deg, var(--accent), var(--good));
 }
 
+/* attention.html gets its own accent so the two windows read as distinct
+   at a glance, matching the tray's warning-amber styling on the board. */
+.attention-mark {
+  background: linear-gradient(180deg, var(--warning), var(--serious));
+}
+
 .brand-text h1 {
   margin: 0;
   font-size: 19px;
@@ -186,9 +192,12 @@ body {
 
 /* ---- Board: 4 quadrants + attention tray ---- */
 
+/* Single full-height row: index.html's board holds only the quadrants now
+   (the attention tray moved to its own window, attention.html), and that
+   page's board holds only the tray -- both are a single 1fr child. */
 .board {
   display: grid;
-  grid-template-rows: 1fr 190px;
+  grid-template-rows: 1fr;
   gap: 12px;
   min-height: 0;
 }
@@ -424,8 +433,7 @@ body {
   visibility: hidden;
 }
 
-.reset-button {
-  display: none;
+.footer-button {
   background: var(--surface-1);
   border: 1px solid var(--border);
   color: var(--text-secondary);
@@ -434,6 +442,23 @@ body {
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
+}
+
+.attention-open-button:hover {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* Flagged when the browser's popup blocker ate the auto-open attempt --
+   the button becomes the visible fix instead of a silent no-op. */
+.attention-open-button.attention-blocked {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.reset-button {
+  display: none;
 }
 
 .reset-button:hover {
@@ -447,39 +472,4 @@ body {
 
 @media (max-width: 900px) {
   .quadrants { grid-template-columns: 1fr; grid-template-rows: repeat(4, minmax(160px, auto)); }
-}
-
-/* ---- Zoom overlay: click a tile's photo to see it large ---- */
-
-.zoom-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 40px;
-  cursor: zoom-out;
-}
-
-.zoom-overlay[hidden] {
-  display: none;
-}
-
-.zoom-overlay img {
-  max-width: 100%;
-  max-height: calc(100% - 60px);
-  object-fit: contain;
-  border-radius: var(--radius-md);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-}
-
-.zoom-caption {
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 700;
-  text-align: center;
 }

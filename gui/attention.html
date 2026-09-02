@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Needs Attention &middot; MUL Baggage Routing</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="kiosk">
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark attention-mark" aria-hidden="true"></span>
+        <div class="brand-text">
+          <h1>Needs Attention</h1>
+          <p class="muted">No can match &middot; handle by hand</p>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-tile stat-flagged">
+          <span class="stat-value" id="stat-flagged">0</span>
+          <span class="stat-label">Waiting</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="mock-banner" id="mode-banner">
+      <strong>MOCK DATA</strong>: stepping through <code>mock_events.json</code>. Double-click a photo to clear it once loaded.
+    </div>
+
+    <main class="board">
+      <section class="attention-tray card">
+        <h2 class="card-title">Needs Attention: no can match, handle by hand</h2>
+        <div class="tile-grid" id="attention-grid"></div>
+      </section>
+    </main>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

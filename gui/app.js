@@ -63,6 +63,50 @@ const state = {
   liveResetOffset: 0,
 };
 
+// Board and attention.html are separate windows with separate polling loops
+// and separate in-memory `state` -- in live mode, dismissing a tile or
+// resetting has to reach both, so that state is mirrored through
+// localStorage (shared across same-origin windows) instead of living only
+// in one window's memory. Demo mode stays purely in-memory: its ids aren't
+// stable across a reload (regenerated from the mock fixture + a counter),
+// so persisting dismissed ids there would misapply to unrelated bags.
+const STORAGE_KEYS = { dismissed: "dmms:dismissed", resetOffset: "dmms:liveResetOffset" };
+
+function loadDismissed() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.dismissed) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissed(set) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.dismissed, JSON.stringify([...set]));
+  } catch {
+    /* private-browsing or storage disabled -- this window just won't sync */
+  }
+}
+
+function loadResetOffset() {
+  const n = Number(localStorage.getItem(STORAGE_KEYS.resetOffset));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function saveResetOffset(n) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.resetOffset, String(n));
+  } catch {
+    /* private-browsing or storage disabled -- this window just won't sync */
+  }
+}
+
+function dismissTile(id) {
+  state.dismissed.add(id);
+  if (IS_LIVE) saveDismissed(state.dismissed);
+  render();
+}
+
 function formatTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -133,6 +177,7 @@ function canIndexFor(event) {
 
 function buildQuadrantShells() {
   const container = el("quadrants");
+  if (!container) return; // attention.html has no quadrants -- that's the whole point
   container.innerHTML = "";
   for (let i = 0; i < CAN_COUNT; i++) {
     const section = document.createElement("section");
@@ -207,27 +252,43 @@ function makeTile(event, { statusChip = null } = {}) {
 
   tile.addEventListener("dblclick", () => {
     clearTimeout(clickTimer);
-    state.dismissed.add(event.id);
-    render();
+    dismissTile(event.id);
   });
 
   return tile;
 }
 
+// Opens the full photo in its own browser window (rather than an in-page
+// overlay) so a handler can drag it to a second monitor or keep it up
+// alongside the board without it sitting on top of the live tiles.
 function openZoom(event) {
-  const img = el("zoom-image");
+  if (!event.photo_path) return;
+  // No noopener/noreferrer here: this popup only ever shows content we write
+  // into it ourselves (never navigates anywhere external), and those flags
+  // make window.open() return null by spec, which left the popup blank --
+  // the window still opened, we just lost the reference needed to fill it.
+  const popup = window.open("", "_blank", "width=720,height=640");
+  if (!popup) return; // actually blocked by the browser's popup blocker
+  const sub = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
+  const title = `${event.flight_number || "Unknown flight"} · ${sub}`;
+  popup.document.title = title;
+  popup.document.body.style.cssText =
+    "margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#111;";
+  const img = popup.document.createElement("img");
   img.src = IMAGE_BASE_URL + event.photo_path;
   img.alt = `Snapshot of ${event.id || "bag"}`;
-  const sub = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
-  el("zoom-caption").textContent = `${event.flight_number || "Unknown flight"} · ${sub}`;
-  el("zoom-overlay").hidden = false;
+  img.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;";
+  popup.document.body.appendChild(img);
 }
 
-function closeZoom() {
-  el("zoom-overlay").hidden = true;
-}
+// Tiles are cached by event id and reused across renders instead of being
+// torn down and rebuilt every poll -- rebuilding recreated the <img> each
+// time, which reset it to "unloaded" and made the photo visibly flicker
+// (fallback icon -> photo) on every LIVE_POLL_MS tick, worst on Needs
+// Attention bags since those sit the longest before a handler clears them.
+const tileCache = new Map(); // event.id -> tile element
 
-function fillGrid(gridEl, items, { emptyText, statusChipFor = null }) {
+function fillGrid(gridEl, items, { emptyText, statusChipFor = null }, seenIds) {
   gridEl.innerHTML = "";
   const { cols, rows } = gridDims(items.length);
   gridEl.style.setProperty("--cols", cols);
@@ -241,12 +302,22 @@ function fillGrid(gridEl, items, { emptyText, statusChipFor = null }) {
     return;
   }
   items.forEach((event) => {
-    const chip = statusChipFor ? statusChipFor(event) : null;
-    gridEl.appendChild(makeTile(event, { statusChip: chip }));
+    seenIds.add(event.id);
+    let tile = tileCache.get(event.id);
+    if (!tile) {
+      const chip = statusChipFor ? statusChipFor(event) : null;
+      tile = makeTile(event, { statusChip: chip });
+      tileCache.set(event.id, tile);
+    }
+    gridEl.appendChild(tile);
   });
 }
 
 function render() {
+  // Pick up dismissals/resets made in the *other* window (board vs.
+  // attention.html) since the last poll -- see the STORAGE_KEYS comment.
+  if (IS_LIVE) state.dismissed = loadDismissed();
+
   const scannedSoFar = state.events.slice(0, state.index + 1);
   const visible = scannedSoFar.filter((e) => !state.dismissed.has(e.id));
   const loaded = scannedSoFar.length - visible.length;
@@ -262,21 +333,33 @@ function render() {
     }
   });
 
-  buckets.forEach((items, i) => {
-    fillGrid(el(`quadrant-grid-${i}`), items, { emptyText: "Waiting for next bag…" });
-    el(`quadrant-count-${i}`).textContent = String(items.length);
-  });
+  const seenIds = new Set();
 
-  fillGrid(el("attention-grid"), attention, {
-    emptyText: "No bags need attention",
-    statusChipFor: (event) => STATUS_INFO[event.status],
-  });
+  if (el("quadrants")) {
+    buckets.forEach((items, i) => {
+      fillGrid(el(`quadrant-grid-${i}`), items, { emptyText: "Waiting for next bag…" }, seenIds);
+      el(`quadrant-count-${i}`).textContent = String(items.length);
+    });
+  }
 
-  // Scanned = In a can + Needs attention + Loaded, always.
-  el("stat-total").textContent = String(scannedSoFar.length);
-  el("stat-routed").textContent = String(visible.length - attention.length);
-  el("stat-flagged").textContent = String(attention.length);
-  el("stat-loaded").textContent = String(loaded);
+  const attentionGrid = el("attention-grid");
+  if (attentionGrid) {
+    fillGrid(attentionGrid, attention, {
+      emptyText: "No bags need attention",
+      statusChipFor: (event) => STATUS_INFO[event.status],
+    }, seenIds);
+  }
+
+  for (const id of tileCache.keys()) {
+    if (!seenIds.has(id)) tileCache.delete(id);
+  }
+
+  // Scanned = In a can + Needs attention + Loaded, always. Not every stat
+  // tile exists on every page (attention.html only has "Waiting").
+  if (el("stat-total")) el("stat-total").textContent = String(scannedSoFar.length);
+  if (el("stat-routed")) el("stat-routed").textContent = String(visible.length - attention.length);
+  if (el("stat-flagged")) el("stat-flagged").textContent = String(attention.length);
+  if (el("stat-loaded")) el("stat-loaded").textContent = String(loaded);
 }
 
 function goTo(index) {
@@ -305,12 +388,17 @@ function setPlaying(playing) {
 
 // Live mode has no demo timeline to scrub or generate — bags just arrive.
 function setLiveEvents(rawEvents) {
+  state.liveResetOffset = loadResetOffset(); // pick up a Reset from the other window
+
   if (rawEvents.length < state.liveResetOffset) {
     // main.py restarted -- live_events.json went back to (near-)empty, so
     // any earlier manual reset point is stale and would otherwise eat the
     // first few genuinely new bags of this new run.
     state.liveResetOffset = 0;
     state.dismissed = new Set();
+    saveResetOffset(0);
+    saveDismissed(state.dismissed);
+    tileCache.clear(); // a restarted main.py can reuse ids from the old run
   }
   state.events = rawEvents.slice(state.liveResetOffset);
   state.index = state.events.length - 1;
@@ -324,10 +412,43 @@ function pollLive() {
     .catch((err) => console.error(err));
 }
 
-el("zoom-overlay").addEventListener("click", closeZoom);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeZoom();
-});
+// Opens (or refocuses, since it's a named window) the Needs Attention tray
+// as its own window -- a full window gives those photos far more room than
+// the strip they used to share with the board. Carries the current query
+// string (?live=1) so the attention window polls the same feed.
+//
+// The auto-open call below (not a click) is exactly what popup blockers
+// exist to stop -- no script trick gets around that, it's the browser
+// deliberately refusing window.open() outside a real click. Rather than
+// fail silently and leave someone hunting for a small footer button, flag
+// the button itself as the fix when that happens.
+function openAttentionWindow() {
+  const win = window.open("attention.html" + location.search, "dmms-attention", "width=900,height=760");
+  // Some blockers return a real handle but close it right back up async,
+  // rather than returning null outright -- catch that case too.
+  const flagIfBlocked = () => {
+    if (!win || win.closed) flagAttentionBlocked();
+  };
+  if (!win) flagAttentionBlocked();
+  else setTimeout(flagIfBlocked, 300);
+}
+
+function flagAttentionBlocked() {
+  const btn = el("btn-open-attention");
+  if (!btn) return;
+  btn.classList.add("attention-blocked");
+  btn.textContent = "⚠ Blocked by browser — click to allow Needs Attention popup";
+}
+
+const openAttentionBtn = el("btn-open-attention");
+if (openAttentionBtn) {
+  openAttentionBtn.addEventListener("click", () => {
+    openAttentionBtn.classList.remove("attention-blocked");
+    openAttentionBtn.textContent = "Needs Attention ↗";
+    openAttentionWindow();
+  });
+  openAttentionWindow(); // auto-open on load; falls back to the flagged button above if blocked
+}
 
 buildQuadrantShells();
 render();
@@ -335,29 +456,42 @@ render();
 if (IS_LIVE) {
   document.body.classList.add("live-mode");
   const banner = el("mode-banner");
-  banner.classList.add("live");
-  banner.innerHTML = '<strong>LIVE</strong>: polling <code>live_events.json</code> from main.py.';
+  if (banner) {
+    banner.classList.add("live");
+    banner.innerHTML = '<strong>LIVE</strong>: polling <code>live_events.json</code> from main.py.';
+  }
 
   // Clears everything currently shown, and the stats, without needing to
   // restart main.py or reload the page. live_events.json only ever grows
   // (main.py appends forever within a run), so this permanently skips
   // everything raw-index-wise up to right now -- not just marking it
   // dismissed, which would still count toward Scanned/Loaded forever.
-  // New bags from the next poll onward show up and count normally.
-  el("btn-reset").addEventListener("click", () => {
-    state.liveResetOffset += state.events.length;
-    state.events = [];
-    state.dismissed = new Set();
-    state.index = -1;
-    render();
-  });
+  // New bags from the next poll onward show up and count normally. Only the
+  // board page has this button; the offset/dismissed reset is persisted so
+  // the attention window (which just polls) picks it up on its next tick.
+  const resetBtn = el("btn-reset");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      state.liveResetOffset += state.events.length;
+      state.events = [];
+      state.dismissed = new Set();
+      state.index = -1;
+      tileCache.clear();
+      saveResetOffset(state.liveResetOffset);
+      saveDismissed(state.dismissed);
+      render();
+    });
+  }
 
   pollLive();
   setInterval(pollLive, LIVE_POLL_MS);
 } else {
-  el("btn-prev").addEventListener("click", () => { setPlaying(false); stepBackward(); });
-  el("btn-next").addEventListener("click", () => { setPlaying(false); stepForward(); });
-  el("btn-play").addEventListener("click", () => setPlaying(!state.playing));
+  const prevBtn = el("btn-prev");
+  const nextBtn = el("btn-next");
+  const playBtn = el("btn-play");
+  if (prevBtn) prevBtn.addEventListener("click", () => { setPlaying(false); stepBackward(); });
+  if (nextBtn) nextBtn.addEventListener("click", () => { setPlaying(false); stepForward(); });
+  if (playBtn) playBtn.addEventListener("click", () => setPlaying(!state.playing));
 
   Promise.all([
     fetch(DATA_URL).then((r) => r.json()),
