@@ -184,7 +184,7 @@ def main():
                 # whatever's within --pair-window seconds either direction;
                 # for --barcode-mode scanner, the real scan already arrived
                 # (or hasn't) via BarcodeListener's background thread.
-                if sim_barcode is not None:
+                if sim_barcode is not None and event.barcode:
                     tag = sim_barcode.next_tag()
                     scan_ts = trigger_ts + random.uniform(-0.3, 0.3)
                     pairer.submit_scan(ts=scan_ts, barcode=tag)
