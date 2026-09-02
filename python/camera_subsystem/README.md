@@ -6,7 +6,7 @@ until barcode-based identification is merged in), and appends a row to
 `events_with_flights.csv`.
 
 ```
-python3 main.py --mode simulate            # press Enter to simulate each bag
+python3 main.py --mode simulate            # Enter = barcoded bag, 'u' = one with no barcode read (Needs Attention)
 python3 main.py --mode simulate --auto-interval 1 3   # fires on its own
 python3 main.py --mode serial --port /dev/ttyUSB0 --baud 9600   # real Arduino
 ```
