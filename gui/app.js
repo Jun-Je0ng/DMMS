@@ -228,6 +228,7 @@ function makeTile(event, { statusChip = null } = {}) {
   caption.className = "tile-caption";
   caption.innerHTML = `
     <div class="tile-flight">${event.flight_number || "Unknown flight"}</div>
+    <div class="tile-destination">${event.destination || "Unknown destination"}</div>
     <div class="tile-sub">${sub}</div>
   `;
 

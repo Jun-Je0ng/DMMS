@@ -346,6 +346,14 @@ body {
   text-overflow: ellipsis;
 }
 
+.tile-caption .tile-destination {
+  font-size: clamp(11px, 1.3vw, 15px);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tile-caption .tile-sub {
   font-size: clamp(10px, 1vw, 13px);
   color: var(--text-secondary);
