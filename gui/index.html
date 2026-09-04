@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MUL Baggage Routing</title>
+<title>DMMS — MUL Baggage Routing</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,10 +11,14 @@
 
     <header class="topbar">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
+        <img
+          class="brand-logo"
+          src="resources/Generated image_ SAAS Airport Automation Logo (1).png"
+          alt="Sydney Airport Automation Systems"
+        />
         <div class="brand-text">
           <h1>MUL Baggage Routing</h1>
-          <p class="muted">Make-Up Line &middot; can assignment board</p>
+          <p class="muted">Make-Up Line &middot; Can Assignment Board</p>
         </div>
       </div>
 
@@ -25,11 +29,11 @@
         </div>
         <div class="stat-tile stat-accent">
           <span class="stat-value" id="stat-routed">0</span>
-          <span class="stat-label">In a can</span>
+          <span class="stat-label">In a Can</span>
         </div>
         <div class="stat-tile stat-flagged">
           <span class="stat-value" id="stat-flagged">0</span>
-          <span class="stat-label">Needs attention</span>
+          <span class="stat-label">Needs Attention</span>
         </div>
         <div class="stat-tile stat-good">
           <span class="stat-value" id="stat-loaded">0</span>
@@ -39,12 +43,13 @@
     </header>
 
     <div class="mock-banner" id="mode-banner">
-      <strong>MOCK DATA</strong>: stepping through <code>mock_events.json</code>. Double-click a photo to clear it once loaded.
+      <strong>MOCK DATA</strong> &mdash; stepping through <code>mock_events.json</code>.
+      Double-click a photo once loaded to clear it.
     </div>
 
     <main class="board">
       <div class="quadrants" id="quadrants">
-        <!-- 4 quadrant sections injected by app.js -->
+        <!-- quadrant sections injected by app.js -->
       </div>
     </main>
 
@@ -53,10 +58,11 @@
         <button id="btn-prev" title="Previous bag">&#8592;</button>
         <button id="btn-play" title="Play / pause">&#9654;</button>
         <button id="btn-next" title="Next bag">&#8594;</button>
-        <span class="demo-label">demo controls &middot; steps through mock_events.json</span>
+        <span class="demo-label">demo &middot; mock_events.json</span>
       </div>
-      <button id="btn-open-attention" class="footer-button attention-open-button" title="Open the Needs Attention tray in its own window">Needs Attention &#8599;</button>
-      <button id="btn-reset" class="footer-button reset-button" title="Clear every tile currently shown">Reset board</button>
+      <button id="btn-manage-cans" class="footer-button add-can-button" title="Open can management">&#9776; Manage Cans</button>
+      <button id="btn-open-attention" class="footer-button attention-open-button" title="Open the Needs Attention tray">Needs Attention &#8599;</button>
+      <button id="btn-reset" class="footer-button reset-button" title="Clear every tile currently shown">Reset Board</button>
     </footer>
 
   </div>

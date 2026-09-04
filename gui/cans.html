@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Can Management &middot; MUL Baggage Routing</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  .mgmt-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mgmt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 28px;
+    border-bottom: 1px solid var(--border-strong);
+    background: var(--page-plane);
+    flex-shrink: 0;
+  }
+
+  .mgmt-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    min-height: 0;
+  }
+
+  /* ---- Left: active cans ---- */
+  .mgmt-left {
+    padding: 28px 32px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+  }
+
+  .section-heading {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-muted);
+    margin: 0 0 16px;
+  }
+
+  .can-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .can-row {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--can-color, var(--accent));
+    border-radius: var(--radius-lg);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .can-row-index {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 700;
+    min-width: 18px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .can-row-fields {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .can-field-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .can-field-wrap.flight-wrap { min-width: 200px; }
+  .can-field-wrap.label-wrap  { flex: 1; }
+
+  .can-field-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+  }
+
+  .can-select,
+  .can-input {
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 13px;
+    padding: 6px 9px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.1s;
+  }
+
+  .can-select {
+    font-family: monospace;
+    font-weight: 600;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%234e6884' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    background-color: var(--surface-2);
+    padding-right: 28px;
+  }
+
+  .can-select:focus,
+  .can-input:focus { border-color: var(--accent); }
+
+  .can-select option { background: #172640; color: #edf2f8; }
+
+  .can-remove-row-btn {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 0.1s, color 0.1s, background 0.1s;
+    padding: 0;
+    line-height: 1;
+  }
+  .can-remove-row-btn:hover:not(:disabled) {
+    border-color: var(--critical);
+    color: var(--critical);
+    background: var(--critical-bg);
+  }
+  .can-remove-row-btn:disabled { opacity: 0.2; cursor: default; }
+
+  .empty-state {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 24px 0;
+  }
+
+  /* ---- Right: tabbed panel ---- */
+  .mgmt-right {
+    background: var(--surface-1);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 13px 0;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-btn:hover:not(.active) { color: var(--text-secondary); }
+
+  .tab-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .tab-panel.active { display: flex; }
+
+  /* ---- Shared form styles ---- */
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .form-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+  }
+
+  .form-select,
+  .form-input {
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.1s;
+  }
+
+  .form-select {
+    font-family: monospace;
+    font-weight: 600;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%234e6884' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-color: var(--surface-2);
+    padding-right: 30px;
+  }
+
+  .form-select:focus,
+  .form-input:focus { border-color: var(--accent); }
+
+  .form-select option { background: #172640; color: #edf2f8; }
+
+  .form-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  .btn-primary {
+    background: rgba(36, 97, 200, 0.15);
+    border: 1px solid rgba(36, 97, 200, 0.45);
+    color: #7aacf0;
+    padding: 9px 0;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    width: 100%;
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+    margin-top: 4px;
+  }
+  .btn-primary:hover {
+    background: rgba(36, 97, 200, 0.28);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* ---- Flights tab ---- */
+  .flight-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .flight-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+  }
+
+  .flight-row-fn {
+    font-family: monospace;
+    font-weight: 700;
+    font-size: 13px;
+    min-width: 64px;
+    color: var(--text-primary);
+  }
+
+  .flight-row-dest {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .flight-remove-btn {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 1;
+    transition: border-color 0.1s, color 0.1s, background 0.1s;
+  }
+  .flight-remove-btn:hover {
+    border-color: var(--critical);
+    color: var(--critical);
+    background: var(--critical-bg);
+  }
+
+  .tab-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 4px 0 8px;
+  }
+
+  /* ---- Footer ---- */
+  .mgmt-footer {
+    padding: 10px 28px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .save-status {
+    font-size: 11px;
+    color: var(--good);
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .save-status.visible { opacity: 1; }
+
+  @media (max-width: 760px) {
+    .mgmt-body { grid-template-columns: 1fr; }
+    .mgmt-left { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+<div class="mgmt-page">
+
+  <header class="mgmt-header">
+    <div class="brand">
+      <img class="brand-logo"
+           src="resources/Generated image_ SAAS Airport Automation Logo (1).png"
+           alt="Sydney Airport Automation Systems" />
+      <div class="brand-text">
+        <h1>Can Management</h1>
+        <p class="muted">Make-Up Line &middot; Can &amp; Flight Assignment</p>
+      </div>
+    </div>
+    <button class="footer-button" onclick="window.close()" title="Close this tab">&#8592; Back to Board</button>
+  </header>
+
+  <div class="mgmt-body">
+
+    <!-- Left: active cans -->
+    <div class="mgmt-left">
+      <p class="section-heading">Active Cans <span id="can-count-label"></span></p>
+      <div class="can-list" id="can-list"></div>
+    </div>
+
+    <!-- Right: tabbed panel -->
+    <div class="mgmt-right">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="cans">Add Can</button>
+        <button class="tab-btn"        data-tab="flights">Flights</button>
+      </div>
+
+      <!-- Add Can tab -->
+      <div class="tab-panel active" id="tab-cans">
+        <div class="form-field">
+          <label class="form-label" for="new-flight">Flight</label>
+          <select class="form-select" id="new-flight">
+            <option value="">— Unassigned (catch-all) —</option>
+          </select>
+          <p class="form-hint">Bags with this flight number will route to this can. Leave unassigned to catch all unmatched bags.</p>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="new-label">
+            Can Label
+            <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span>
+          </label>
+          <input class="form-input" id="new-label" type="text"
+                 placeholder="e.g. Can 5" maxlength="24" autocomplete="off" />
+        </div>
+        <button class="btn-primary" id="btn-submit-can">&#43; Add Can</button>
+      </div>
+
+      <!-- Flights tab -->
+      <div class="tab-panel" id="tab-flights">
+        <p class="section-heading" style="margin-bottom:8px">Configured Flights <span id="flight-count-label"></span></p>
+        <div class="flight-list" id="flight-list"></div>
+
+        <hr class="tab-divider" />
+
+        <p class="section-heading" style="margin-bottom:8px">Add Flight</p>
+        <div class="form-field">
+          <label class="form-label" for="new-fn">Flight Number</label>
+          <input class="form-input" id="new-fn" type="text"
+                 placeholder="e.g. QA298" maxlength="8"
+                 autocomplete="off" style="text-transform:uppercase;font-family:monospace;font-weight:700" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="new-dest">Destination Code</label>
+          <input class="form-input" id="new-dest" type="text"
+                 placeholder="e.g. SYD" maxlength="6"
+                 autocomplete="off" style="text-transform:uppercase;font-family:monospace" />
+        </div>
+        <button class="btn-primary" id="btn-add-flight">&#43; Add Flight</button>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="mgmt-footer">
+    <span>Changes save automatically and sync to the board in real time.</span>
+    <span class="save-status" id="save-status">&#10003; Saved</span>
+  </footer>
+
+</div>
+<script>
+// ── Constants (must match app.js) ─────────────────────────────────────────
+const CAN_STORAGE_KEY     = "dmms:cans";
+const FLIGHTS_STORAGE_KEY = "dmms:flights";
+
+const CAN_COLORS = [
+  "#2461c8","#c47a00","#0f8a60","#7050b8",
+  "#1788b8","#b85010","#186040","#9040a0",
+];
+
+let _canSeq = Date.now();
+function nextCanId() { return `can_${++_canSeq}`; }
+function canColor(i) { return CAN_COLORS[i % CAN_COLORS.length]; }
+
+// ── State ─────────────────────────────────────────────────────────────────
+let cans    = [];
+let flights = [];   // [{ flight_number, destination }]
+
+function loadCans() {
+  try {
+    const p = JSON.parse(localStorage.getItem(CAN_STORAGE_KEY) || "null");
+    if (Array.isArray(p) && p.length) return p;
+  } catch {}
+  return [
+    { id: nextCanId(), label: "Can 1", flight: "" },
+    { id: nextCanId(), label: "Can 2", flight: "" },
+    { id: nextCanId(), label: "Can 3", flight: "" },
+    { id: nextCanId(), label: "Can 4", flight: "" },
+  ];
+}
+
+function loadFlights() {
+  try {
+    const p = JSON.parse(localStorage.getItem(FLIGHTS_STORAGE_KEY) || "null");
+    if (Array.isArray(p)) return p;
+  } catch {}
+  return [];
+}
+
+function flashSaved() {
+  const el = document.getElementById("save-status");
+  if (!el) return;
+  el.classList.add("visible");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("visible"), 2000);
+}
+
+function saveCans() {
+  try { localStorage.setItem(CAN_STORAGE_KEY, JSON.stringify(cans)); } catch {}
+  flashSaved();
+}
+
+function saveFlights() {
+  try { localStorage.setItem(FLIGHTS_STORAGE_KEY, JSON.stringify(flights)); } catch {}
+  flashSaved();
+}
+
+// ── Dropdown population ───────────────────────────────────────────────────
+function populateSelect(sel, currentValue) {
+  while (sel.options.length > 1) sel.remove(1);
+  flights.forEach(f => {
+    const opt = document.createElement("option");
+    opt.value       = f.flight_number;
+    opt.textContent = `${f.flight_number}  —  ${f.destination}`;
+    sel.appendChild(opt);
+  });
+  sel.value = currentValue || "";
+}
+
+function repopulateAllSelects() {
+  // Re-populate every can-row select
+  document.querySelectorAll("select.can-select").forEach(sel => {
+    const canId = sel.dataset.canId;
+    const can   = cans.find(c => c.id === canId);
+    if (can) populateSelect(sel, can.flight);
+  });
+  // Re-populate the add-can form select
+  const addSel = document.getElementById("new-flight");
+  if (addSel) populateSelect(addSel, addSel.value);
+}
+
+// ── Can list render ───────────────────────────────────────────────────────
+function renderCanList() {
+  const list       = document.getElementById("can-list");
+  const countLabel = document.getElementById("can-count-label");
+  if (!list) return;
+
+  if (countLabel) countLabel.textContent = `(${cans.length})`;
+
+  if (!cans.length) {
+    list.innerHTML = '<p class="empty-state">No cans configured. Add one →</p>';
+    return;
+  }
+
+  list.innerHTML = "";
+  cans.forEach((can, i) => {
+    const color = canColor(i);
+    const row   = document.createElement("div");
+    row.className = "can-row";
+    row.style.setProperty("--can-color", color);
+
+    row.innerHTML = `
+      <span class="can-row-index">${i + 1}</span>
+      <div class="can-row-fields">
+        <div class="can-field-wrap flight-wrap">
+          <span class="can-field-label">Flight</span>
+          <select class="can-select" data-can-id="${can.id}">
+            <option value="">— Unassigned —</option>
+          </select>
+        </div>
+        <div class="can-field-wrap label-wrap">
+          <span class="can-field-label">Label</span>
+          <input class="can-input" type="text"
+                 value="${can.label}" maxlength="24" autocomplete="off"
+                 data-can-id="${can.id}" placeholder="Can ${i + 1}" />
+        </div>
+      </div>
+      <button class="can-remove-row-btn" data-can-id="${can.id}"
+              title="Remove can" ${cans.length <= 1 ? "disabled" : ""}>&#215;</button>
+    `;
+
+    list.appendChild(row);
+
+    const sel = row.querySelector("select.can-select");
+    populateSelect(sel, can.flight);
+
+    sel.addEventListener("change", () => {
+      const c = cans.find(x => x.id === can.id);
+      if (c) { c.flight = sel.value; saveCans(); }
+    });
+
+    const inp = row.querySelector("input.can-input");
+    inp.addEventListener("change", () => {
+      const c = cans.find(x => x.id === can.id);
+      if (c) { c.label = inp.value.trim() || `Can ${i + 1}`; saveCans(); }
+    });
+
+    row.querySelector(".can-remove-row-btn").addEventListener("click", () => {
+      if (cans.length <= 1) return;
+      cans = cans.filter(x => x.id !== can.id);
+      saveCans();
+      renderCanList();
+    });
+  });
+}
+
+// ── Flight list render ────────────────────────────────────────────────────
+function renderFlightList() {
+  const list       = document.getElementById("flight-list");
+  const countLabel = document.getElementById("flight-count-label");
+  if (!list) return;
+
+  if (countLabel) countLabel.textContent = `(${flights.length})`;
+
+  if (!flights.length) {
+    list.innerHTML = '<p class="empty-state">No flights added yet. Use the form below.</p>';
+    return;
+  }
+
+  list.innerHTML = "";
+  flights.forEach((f, i) => {
+    const row = document.createElement("div");
+    row.className = "flight-row";
+    row.innerHTML = `
+      <span class="flight-row-fn">${f.flight_number}</span>
+      <span class="flight-row-dest">${f.destination}</span>
+      <button class="flight-remove-btn" title="Remove flight">&#215;</button>
+    `;
+    row.querySelector(".flight-remove-btn").addEventListener("click", () => {
+      // If a can was assigned this flight, clear it
+      cans.forEach(c => { if (c.flight === f.flight_number) c.flight = ""; });
+      flights.splice(i, 1);
+      saveFlights();
+      saveCans();
+      renderFlightList();
+      renderCanList();
+    });
+    list.appendChild(row);
+  });
+}
+
+// ── Add Can form ──────────────────────────────────────────────────────────
+function setupAddCanForm() {
+  const addSel = document.getElementById("new-flight");
+  if (addSel) populateSelect(addSel, "");
+
+  document.getElementById("btn-submit-can")?.addEventListener("click", () => {
+    const flight   = (document.getElementById("new-flight")?.value || "").trim();
+    const rawLabel = (document.getElementById("new-label")?.value  || "").trim();
+    const n        = cans.length + 1;
+
+    cans.push({ id: nextCanId(), label: rawLabel || `Can ${n}`, flight });
+    saveCans();
+    renderCanList();
+
+    const sel = document.getElementById("new-flight");
+    if (sel) populateSelect(sel, "");
+    const lbl = document.getElementById("new-label");
+    if (lbl) lbl.value = "";
+  });
+}
+
+// ── Add Flight form ───────────────────────────────────────────────────────
+function setupAddFlightForm() {
+  document.getElementById("btn-add-flight")?.addEventListener("click", () => {
+    const fnInput   = document.getElementById("new-fn");
+    const destInput = document.getElementById("new-dest");
+    const fn   = (fnInput?.value   || "").trim().toUpperCase();
+    const dest = (destInput?.value || "").trim().toUpperCase();
+
+    if (!fn) { fnInput?.focus(); return; }
+    if (!dest) { destInput?.focus(); return; }
+
+    // Prevent duplicates
+    if (flights.some(f => f.flight_number === fn)) {
+      fnInput?.focus();
+      fnInput?.select();
+      return;
+    }
+
+    flights.push({ flight_number: fn, destination: dest });
+    saveFlights();
+    renderFlightList();
+    repopulateAllSelects();
+
+    if (fnInput)   fnInput.value   = "";
+    if (destInput) destInput.value = "";
+    fnInput?.focus();
+  });
+
+  // Submit on Enter in either field
+  ["new-fn", "new-dest"].forEach(id => {
+    document.getElementById(id)?.addEventListener("keydown", e => {
+      if (e.key === "Enter") document.getElementById("btn-add-flight")?.click();
+    });
+  });
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+function setupTabs() {
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
+    });
+  });
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+cans    = loadCans();
+flights = loadFlights();
+
+setupTabs();
+renderCanList();
+renderFlightList();
+setupAddCanForm();
+setupAddFlightForm();
+</script>
+</body>
+</html>
