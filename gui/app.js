@@ -13,6 +13,7 @@
 // This page listens for storage changes and re-renders instantly when cans
 // are added, removed, or reassigned from the management tab.
 
+const _CFG    = window.DMMS_CONFIG || {};
 const IS_LIVE = new URLSearchParams(location.search).has("live");
 const DATA_URL    = IS_LIVE
   ? "../python/camera_subsystem/live_events.json"
@@ -26,6 +27,12 @@ const CAN_COLORS = [
   "#2461c8","#c47a00","#0f8a60","#7050b8",
   "#1788b8","#b85010","#186040","#9040a0",
 ];
+
+// Apply display scale from config.js
+(function () {
+  const scale = (_CFG.uiScale && isFinite(_CFG.uiScale)) ? _CFG.uiScale : 1;
+  document.documentElement.style.setProperty("--ui-scale", String(scale));
+}());
 
 const STATUS_WEIGHTS = [
   ["matched",        70],
@@ -263,9 +270,10 @@ const tileCache = new Map();
 
 function makeTile(event, { statusChip = null } = {}) {
   const tile = document.createElement("div");
-  tile.className = "tile";
-  tile.title     = "Click to zoom · double-click to clear once loaded";
+  tile.className  = "tile";
+  tile.title      = "Click to zoom · double-click to clear once loaded";
   tile.dataset.eventId = event.id || "";
+  tile._eventRef  = event;
 
   const photo = document.createElement("div");
   photo.className = "tile-photo";
@@ -277,6 +285,7 @@ function makeTile(event, { statusChip = null } = {}) {
     const fallbackIcon = photo.querySelector("svg");
     img.onload  = () => { img.classList.add("loaded"); if (fallbackIcon) fallbackIcon.style.display = "none"; };
     img.onerror = () => { img.classList.remove("loaded"); if (fallbackIcon) fallbackIcon.style.display = ""; };
+    img.dataset.photoPath = event.photo_path;
     img.src = IMAGE_BASE_URL + event.photo_path;
     photo.appendChild(img);
   }
@@ -309,7 +318,11 @@ function makeTile(event, { statusChip = null } = {}) {
   });
   tile.addEventListener("dblclick", () => {
     clearTimeout(clickTimer);
-    dismissTile(event.id);
+    const ev  = tile._eventRef;
+    const ids = (ev._groupIds && ev._groupIds.length) ? ev._groupIds : [ev.id];
+    ids.forEach((id) => state.dismissed.add(id));
+    if (IS_LIVE) saveDismissed(state.dismissed);
+    render();
   });
 
   return tile;
@@ -386,12 +399,13 @@ function collapseAttention(events) {
     if (event.status === "duplicate" && event.flight_number) {
       const key = `__dup__${event.flight_number}|${event.destination || ""}`;
       if (!dupMap.has(key)) {
-        const group = { ...event, id: key, _dupCount: 1 };
+        const group = { ...event, id: key, _dupCount: 1, _groupIds: [event.id] };
         dupMap.set(key, group);
         out.push(group);
       } else {
         const g = dupMap.get(key);
         g._dupCount += 1;
+        g._groupIds.push(event.id);
         if (event.photo_path) g.photo_path = event.photo_path;
         g.timestamp = event.timestamp;
       }
@@ -449,7 +463,11 @@ function render() {
       statusChipFor: (event) => event._noRoute ? NO_ROUTE_INFO : STATUS_INFO[event.status],
     }, seenIds);
     // Update duplicate count badges in-place on cached tiles (no DOM flash)
+    const dupPhotoMap = new Map(); // FLIGHT -> latest photo_path
     collapsed.forEach((event) => {
+      // Keep eventRef current so dblclick always dismisses all accumulated ids
+      const tile = tileCache.get(event.id);
+      if (tile) tile._eventRef = event;
       if (event._dupCount > 1) {
         const tile = tileCache.get(event.id);
         if (!tile) return;
@@ -461,7 +479,27 @@ function render() {
         }
         badge.textContent = `×${event._dupCount} scans`;
       }
+      if (event._dupCount && event.photo_path && event.flight_number) {
+        dupPhotoMap.set(event.flight_number.toUpperCase(), event.photo_path);
+      }
     });
+
+    // Propagate latest duplicate photo to matching quadrant tiles
+    if (dupPhotoMap.size) {
+      tileCache.forEach((tile, id) => {
+        if (id.startsWith("__dup__")) return;
+        const ev = tile._eventRef;
+        if (!ev || !ev.flight_number) return;
+        const latestPath = dupPhotoMap.get(ev.flight_number.toUpperCase());
+        if (!latestPath) return;
+        const img = tile.querySelector(".tile-photo img");
+        if (img && img.dataset.photoPath !== latestPath) {
+          img.dataset.photoPath = latestPath;
+          img.classList.remove("loaded");
+          img.src = IMAGE_BASE_URL + latestPath;
+        }
+      });
+    }
   }
 
   for (const id of tileCache.keys()) {
