@@ -1,6 +1,6 @@
-flight_number,destination
-QA298,SYD
-LM219,CGK
-SG334,SNG
-NZ499,NZD
-RW009,MON
+flight_number,destination,departure_time
+QA298,SYD,07:45
+LM219,CGK,08:30
+SG334,SNG,09:15
+NZ499,NZD,10:00
+RW009,MON,11:20

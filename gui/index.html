@@ -40,6 +40,11 @@
           <span class="stat-label">Loaded</span>
         </div>
       </div>
+
+      <div class="live-clock-wrap" title="Current local time">
+        <span class="live-clock" id="live-clock">--:--:--</span>
+        <span class="live-clock-label">Local Time</span>
+      </div>
     </header>
 
     <div class="mock-banner" id="mode-banner">
@@ -59,6 +64,18 @@
         <button id="btn-play" title="Play / pause">&#9654;</button>
         <button id="btn-next" title="Next bag">&#8594;</button>
         <span class="demo-label">demo &middot; mock_events.json</span>
+      </div>
+      <div class="toggle-controls">
+        <label class="toggle-wrap" title="Bags auto-clear from the board after the set number of seconds">
+          <input type="checkbox" id="tog-timeout" />
+          <span>Auto-clear</span>
+          <input type="number" id="timeout-secs" value="30" min="5" max="999" class="timeout-secs-input" disabled />
+          <span>s</span>
+        </label>
+        <label class="toggle-wrap" title="Carousel slides advance automatically">
+          <input type="checkbox" id="tog-autoscroll" />
+          <span>Auto-scroll</span>
+        </label>
       </div>
       <button id="btn-manage-cans" class="footer-button add-can-button" title="Open can management">&#9776; Manage Cans</button>
       <button id="btn-open-attention" class="footer-button attention-open-button" title="Open the Needs Attention tray">Needs Attention &#8599;</button>

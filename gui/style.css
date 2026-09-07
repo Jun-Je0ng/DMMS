@@ -14,25 +14,28 @@
   color-scheme: dark;
 
   /* -- Surfaces -------------------------------------------- */
-  --page-plane:     #0b1524;
-  --surface-1:      #111e32;
-  --surface-2:      #172640;
-  --surface-3:      #1e2f4e;
-  --surface-header: #0e1929;
+  --page-plane:     #0a0a0a;
+  --surface-1:      #0f0f0f;
+  --surface-2:      #161616;
+  --surface-3:      #1e1e1e;
+  --surface-header: #080808;
 
   /* -- Text ------------------------------------------------ */
-  --text-primary:   #edf2f8;
-  --text-secondary: #8ba4c2;
-  --text-muted:     #4e6884;
+  --text-primary:   #ffffff;
+  --text-secondary: #c8c8c8;
+  --text-muted:     #5a5a5a;
 
   /* -- Borders --------------------------------------------- */
-  --border:         rgba(255, 255, 255, 0.07);
-  --border-strong:  rgba(255, 255, 255, 0.14);
+  --border:         rgba(255, 255, 255, 0.10);
+  --border-strong:  rgba(255, 255, 255, 0.20);
   --border-accent:  rgba(36, 97, 200, 0.45);
 
   /* -- Brand accent ---------------------------------------- */
   --accent:         #2461c8;
   --accent-light:   #4d8de8;
+
+  /* FIDS display yellow — flight numbers, key callouts */
+  --fids-yellow:    #f5d000;
 
   /* -- Status colours (aviation-grade semantics) ----------- */
   --good:     #00a05a;   /* green — loaded / clear */
@@ -119,11 +122,10 @@ body {
 
 /* SAAS logo — replaces the old gradient bar */
 .brand-logo {
-  height: 40px;
+  height: 80px;
   width: auto;
   display: block;
-  /* logo is on a white background; invert isn't needed — keep as-is */
-  filter: brightness(0) invert(1);   /* make it white/light on dark bg */
+  filter: brightness(0) invert(1);
   opacity: 0.92;
 }
 
@@ -202,6 +204,40 @@ body {
 .stat-flagged .stat-value { color: var(--warning); }
 .stat-accent  .stat-value { color: var(--accent-light); }
 
+/* ---- Live clock ----------------------------------------- */
+
+.live-clock-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--accent-light);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  gap: 2px;
+  flex: none;
+}
+
+.live-clock {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-light);
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.live-clock-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
 /* ---- Mock / live banner ---------------------------------- */
 
 .mock-banner {
@@ -260,14 +296,16 @@ body {
   grid-template-rows: 1fr;
   gap: 10px;
   min-height: 0;
+  /* default align-items: stretch — .quadrants fills the full 1fr row */
 }
 
 .quadrants {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 10px;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;       /* allow grid parent to bound height */
+  height: 100%;        /* fill the 1fr board row completely */
+  overflow: hidden;
 }
 
 /* ---- Quadrant -------------------------------------------- */
@@ -275,12 +313,59 @@ body {
 .quadrant {
   background: var(--surface-1);
   border: 1px solid var(--border);
-  border-top: 3px solid var(--cat, var(--accent));
+  border-left: 4px solid var(--cat, var(--accent));
   border-radius: var(--radius-lg);
-  padding: 12px 14px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  flex: 1 1 0;         /* share space equally — 1 can = 100%, 2 cans = 50% each, etc. */
+  min-height: 60px;
+  overflow: hidden;
+}
+
+/* Sidebar: can label/flight/count stacked vertically */
+.quadrant-sidebar {
+  width: 200px;
+  flex: none;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  border-right: 1px solid var(--border);
+}
+
+/* Airline logo container — sits above the label in the sidebar */
+.sidebar-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  overflow: hidden;
+}
+
+.airline-logo {
+  display: block;
+  max-height: 64px;
+  width: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+  opacity: 1;
+  background: #fff;
+  border-radius: 5px;
+  padding: 5px 8px;
+  box-sizing: border-box;
+}
+
+/* Content area: tile grid / carousel */
+.quadrant-content {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
 }
 
 .quadrant[data-can="0"] { --cat: var(--cat-1); }
@@ -288,18 +373,13 @@ body {
 .quadrant[data-can="2"] { --cat: var(--cat-3); }
 .quadrant[data-can="3"] { --cat: var(--cat-4); }
 
-.quadrant-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
+/* quadrant-header is retired; layout now uses .quadrant-sidebar */
 
 .quadrant-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: clamp(calc(12px * var(--ui-scale)), calc(1.4vw * var(--ui-scale)), calc(26px * var(--ui-scale)));
+  gap: 6px;
+  font-size: clamp(calc(12px * var(--ui-scale)), calc(1.4vw * var(--ui-scale)), calc(24px * var(--ui-scale)));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -316,13 +396,9 @@ body {
 
 .quadrant-count {
   font-family: var(--mono);
-  font-size: clamp(calc(10px * var(--ui-scale)), calc(1.1vw * var(--ui-scale)), calc(20px * var(--ui-scale)));
+  font-size: clamp(calc(15px * var(--ui-scale)), calc(1.6vw * var(--ui-scale)), calc(28px * var(--ui-scale)));
   font-weight: 700;
-  color: var(--text-muted);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
+  color: rgba(255,255,255,0.55);
   letter-spacing: 0.04em;
 }
 
@@ -337,13 +413,33 @@ body {
 
 /* ---- Tile grid ------------------------------------------ */
 
+/* Base */
 .tile-grid {
   flex: 1;
   min-height: 0;
-  display: grid;
   gap: 6px;
+}
+
+/* Row layout — used inside each CAN row (quadrant-content).
+   Tiles always sit side-by-side in a single horizontal row,
+   sharing the width equally. */
+.tile-grid.row-layout {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.tile-grid.row-layout > .tile {
+  flex: 1 1 0;
+  height: 100%;
+  min-width: 0;
+}
+
+/* Grid layout — used in the attention tray (2-D wrapping). */
+.tile-grid.grid-layout {
+  display: grid;
   grid-template-columns: repeat(var(--cols, 1), 1fr);
-  grid-template-rows: repeat(var(--rows, 1), 1fr);
+  grid-template-rows:    repeat(var(--rows, 1), 1fr);
 }
 
 /* ---- Individual tile ------------------------------------ */
@@ -372,7 +468,7 @@ body {
 .tile-photo {
   width: 100%;
   height: 100%;
-  background: var(--surface-3);
+  background: #111;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -403,28 +499,30 @@ body {
   padding: 18px 10px 8px;
   line-height: 1.25;
   background: linear-gradient(to top,
-    rgba(5, 12, 24, 0.88) 0%,
-    rgba(5, 12, 24, 0.60) 55%,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.60) 55%,
     transparent 100%);
 }
 
 .tile-caption .tile-flight {
   font-family: var(--mono);
-  font-size: clamp(calc(13px * var(--ui-scale)), calc(2.2vw * var(--ui-scale)), calc(28px * var(--ui-scale)));
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: clamp(calc(10px * var(--ui-scale)), calc(1.2vw * var(--ui-scale)), calc(16px * var(--ui-scale)));
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(245, 208, 0, 0.70);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .tile-caption .tile-destination {
-  font-size: clamp(calc(10px * var(--ui-scale)), calc(1.3vw * var(--ui-scale)), calc(18px * var(--ui-scale)));
-  color: var(--text-secondary);
+  font-size: clamp(calc(10px * var(--ui-scale)), calc(1.1vw * var(--ui-scale)), calc(14px * var(--ui-scale)));
+  color: var(--warning);
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .tile-caption .tile-sub {
@@ -467,6 +565,117 @@ body {
   text-align: center;
   border: 1px dashed var(--border);
   border-radius: var(--radius-md);
+}
+
+/* ---- Carousel mode (overrides row-layout when > threshold) */
+
+.tile-grid.carousel-mode {
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  scroll-behavior: smooth;
+}
+
+/* Each carousel tile is at least 400px wide so photos are legible;
+   on wider screens more tiles fit naturally. */
+.tile-grid.carousel-mode > .tile {
+  flex: 0 0 max(400px, 28%) !important;
+  height: 100%;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+/* ---- Countdown bar (auto-clear timeout) ------------------ */
+
+.tile-countdown {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--accent-light);
+  animation: tile-countdown-anim linear forwards;
+  animation-duration: var(--countdown-dur, 30s);
+}
+
+@keyframes tile-countdown-anim {
+  from { width: 100%; opacity: 1; }
+  to   { width: 0%;   opacity: 0.4; }
+}
+
+/* ---- Toggle controls in footer -------------------------- */
+
+.toggle-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-right: auto;
+}
+
+.toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.toggle-wrap input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 30px;
+  height: 17px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+  flex: none;
+}
+
+.toggle-wrap input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  top: 1px;
+  left: 1px;
+  transition: left 0.2s, background 0.2s;
+}
+
+.toggle-wrap input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent-light);
+}
+
+.toggle-wrap input[type="checkbox"]:checked::after {
+  left: 14px;
+  background: #fff;
+}
+
+.timeout-secs-input {
+  width: 44px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 2px 5px;
+  font-size: 11px;
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.timeout-secs-input:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* ---- Footer --------------------------------------------- */
@@ -546,11 +755,107 @@ body {
 
 .live-mode .reset-button { display: inline-block; }
 
+
+/* ---- Dismiss modal -------------------------------------- */
+
+.dismiss-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(3px);
+}
+
+.dismiss-modal[hidden] { display: none; }
+
+.dismiss-modal-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-top: 3px solid var(--accent-light);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px 24px;
+  min-width: 340px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+}
+
+.dismiss-modal-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-primary);
+}
+
+.dismiss-modal-info {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fids-yellow);
+  letter-spacing: 0.05em;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.3);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--fids-yellow);
+}
+
+.dismiss-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.dismiss-btn {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.dismiss-btn-loaded {
+  background: var(--good-bg);
+  border-color: var(--good);
+  color: var(--good);
+}
+.dismiss-btn-loaded:hover {
+  background: var(--good);
+  color: #000;
+}
+
+.dismiss-btn-remove {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+.dismiss-btn-remove:hover {
+  border-color: var(--critical);
+  color: var(--critical);
+}
+
+.dismiss-btn-cancel {
+  background: none;
+  border-color: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.dismiss-btn-cancel:hover { color: var(--text-secondary); }
+
 @media (max-width: 900px) {
-  .quadrants {
-    grid-template-columns: 1fr;
-    grid-template-rows: repeat(4, minmax(150px, auto));
-  }
+  .quadrant-sidebar { width: 140px; }
 }
 
 /* ---- Dynamic can management ------------------------------ */
@@ -585,14 +890,15 @@ body {
 /* Inline flight-number editor */
 .can-flight-display {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--cat, var(--accent));
+  color: var(--fids-yellow);
   cursor: text;
   border-bottom: 1px dashed transparent;
   transition: border-color 0.1s;
   white-space: nowrap;
+  line-height: 1;
 }
 
 .can-flight-display:hover { border-bottom-color: var(--border-strong); }
@@ -602,7 +908,7 @@ body {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--cat, var(--accent));
+  color: var(--fids-yellow);
   background: var(--surface-2);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
@@ -612,12 +918,31 @@ body {
   text-transform: uppercase;
 }
 
-.can-name-display {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-weight: 400;
+.can-dep-time {
+  display: block;
+  font-family: var(--mono);
+  font-size: clamp(calc(16px * var(--ui-scale)), calc(1.8vw * var(--ui-scale)), calc(30px * var(--ui-scale)));
+  font-weight: 700;
+  color: var(--fids-yellow);
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+}
+
+.can-dest-display {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+}
+
+.can-name-display {
+  font-size: 14px;
+  color: #ffffff;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 /* "Add Can" footer button — primary accent style */

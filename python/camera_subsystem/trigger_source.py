@@ -43,25 +43,40 @@ class SimulatedTriggerSource(TriggerSource):
     def _read_key(self, prompt: str) -> str:
         """Blocks for one key press, no Enter required for a real terminal ('u' fires
         immediately, same as Enter does). Falls back to line-buffered input() when
-        stdin isn't a real tty (piped input, tests) -- first character decides there."""
+        stdin isn't a real tty (piped input, tests) -- first character decides there.
+
+        Works on both Windows (msvcrt) and Unix (termios/tty).
+        """
         print(prompt, end="", flush=True)
         if not sys.stdin.isatty():
             line = input()
             return line[:1]
-        import termios
-        import tty
-
-        fd = sys.stdin.fileno()
-        old = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            ch = sys.stdin.read(1)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
-        print()  # raw mode doesn't echo the key itself
-        if ch == "\x03":  # Ctrl+C -- raw mode disables the terminal's own SIGINT
-            raise KeyboardInterrupt
-        return ch
+        if sys.platform == "win32":
+            import msvcrt
+            while True:
+                ch = msvcrt.getwch()
+                if ch in ("\r", "\n", "u", "U"):
+                    print()  # move to next line
+                    if ch == "\x03":  # Ctrl+C
+                        raise KeyboardInterrupt
+                    return ch.lower()
+                if ch == "\x03":  # Ctrl+C via msvcrt
+                    raise KeyboardInterrupt
+                # ignore other keys, wait for Enter or 'u'
+        else:
+            import termios
+            import tty
+            fd = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            try:
+                tty.setraw(fd)
+                ch = sys.stdin.read(1)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)
+            print()  # raw mode doesn't echo the key itself
+            if ch == "\x03":  # Ctrl+C -- raw mode disables the terminal's own SIGINT
+                raise KeyboardInterrupt
+            return ch
 
     def events(self) -> Iterator[TriggerEvent]:
         count = 0

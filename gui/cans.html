@@ -305,6 +305,14 @@
     color: var(--text-primary);
   }
 
+  .flight-row-dep {
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #d49200;
+    min-width: 52px;
+  }
+
   .flight-row-dest {
     flex: 1;
     font-size: 12px;
@@ -439,6 +447,11 @@
           <input class="form-input" id="new-dest" type="text"
                  placeholder="e.g. SYD" maxlength="6"
                  autocomplete="off" style="text-transform:uppercase;font-family:monospace" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="new-dep">Departure Time</label>
+          <input class="form-input" id="new-dep" type="time"
+                 autocomplete="off" />
         </div>
         <button class="btn-primary" id="btn-add-flight">&#43; Add Flight</button>
       </div>
@@ -618,6 +631,7 @@ function renderFlightList() {
     row.innerHTML = `
       <span class="flight-row-fn">${f.flight_number}</span>
       <span class="flight-row-dest">${f.destination}</span>
+      <span class="flight-row-dep">${f.departure_time || "—"}</span>
       <button class="flight-remove-btn" title="Remove flight">&#215;</button>
     `;
     row.querySelector(".flight-remove-btn").addEventListener("click", () => {
@@ -659,8 +673,12 @@ function setupAddFlightForm() {
   document.getElementById("btn-add-flight")?.addEventListener("click", () => {
     const fnInput   = document.getElementById("new-fn");
     const destInput = document.getElementById("new-dest");
+    const fnInput2  = document.getElementById("new-fn");
+    const destInput2 = document.getElementById("new-dest");
+    const depInput  = document.getElementById("new-dep");
     const fn   = (fnInput?.value   || "").trim().toUpperCase();
     const dest = (destInput?.value || "").trim().toUpperCase();
+    const dep  = (depInput?.value  || "").trim();
 
     if (!fn) { fnInput?.focus(); return; }
     if (!dest) { destInput?.focus(); return; }
@@ -672,18 +690,19 @@ function setupAddFlightForm() {
       return;
     }
 
-    flights.push({ flight_number: fn, destination: dest });
+    flights.push({ flight_number: fn, destination: dest, departure_time: dep });
     saveFlights();
     renderFlightList();
     repopulateAllSelects();
 
     if (fnInput)   fnInput.value   = "";
     if (destInput) destInput.value = "";
+    if (depInput)  depInput.value  = "";
     fnInput?.focus();
   });
 
   // Submit on Enter in either field
-  ["new-fn", "new-dest"].forEach(id => {
+  ["new-fn", "new-dest", "new-dep"].forEach(id => {
     document.getElementById(id)?.addEventListener("keydown", e => {
       if (e.key === "Enter") document.getElementById("btn-add-flight")?.click();
     });

@@ -22,6 +22,7 @@ const IMAGE_BASE_URL = "../python/camera_subsystem/";
 const ADVANCE_MS          = 2500;
 const LIVE_POLL_MS        = 1500;
 const ZOOM_CLICK_DELAY_MS = 220;
+const CAROUSEL_THRESHOLD  = 4;   // beyond this many tiles, use a horizontal carousel
 
 const CAN_COLORS = [
   "#2461c8","#c47a00","#0f8a60","#7050b8",
@@ -56,6 +57,68 @@ const CAMERA_ICON =
 
 const el = (id) => document.getElementById(id);
 
+// ── Dismiss modal ─────────────────────────────────────────────────────────────
+
+let _pendingDismissCallback = null;
+
+function ensureDismissModal() {
+  if (el("dismiss-modal")) return;
+  const modal = document.createElement("div");
+  modal.id        = "dismiss-modal";
+  modal.className = "dismiss-modal";
+  modal.hidden    = true;
+  modal.innerHTML = `
+    <div class="dismiss-modal-box">
+      <p class="dismiss-modal-title">Remove Bag from Board</p>
+      <p class="dismiss-modal-info" id="dismiss-modal-info"></p>
+      <div class="dismiss-modal-actions">
+        <button id="dismiss-btn-loaded" class="dismiss-btn dismiss-btn-loaded">
+          ✓ &nbsp;Mark as Loaded
+        </button>
+        <button id="dismiss-btn-remove" class="dismiss-btn dismiss-btn-remove">
+          ✕ &nbsp;Remove from Board
+        </button>
+        <button id="dismiss-btn-cancel" class="dismiss-btn dismiss-btn-cancel">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  el("dismiss-btn-loaded").onclick  = () => { _resolveDismiss(true);  };
+  el("dismiss-btn-remove").onclick  = () => { _resolveDismiss(false); };
+  el("dismiss-btn-cancel").onclick  = _closeDismissModal;
+  modal.addEventListener("click", (e) => { if (e.target === modal) _closeDismissModal(); });
+}
+
+function _resolveDismiss(markLoaded) {
+  const cb = _pendingDismissCallback;  // capture before close nulls it
+  _closeDismissModal();
+  if (cb) cb(markLoaded);
+}
+
+function _closeDismissModal() {
+  const m = el("dismiss-modal");
+  if (m) m.hidden = true;
+  _pendingDismissCallback = null;
+}
+
+function showDismissModal(event, callback) {
+  ensureDismissModal();
+  const info = el("dismiss-modal-info");
+  if (info) {
+    const parts = [
+      event.flight_number || "Unknown flight",
+      event.destination   || null,
+      event.id            || null,
+      event._dupCount > 1 ? `×${event._dupCount} duplicate scans` : null,
+    ].filter(Boolean);
+    info.textContent = parts.join(" · ");
+  }
+  _pendingDismissCallback = callback;
+  el("dismiss-modal").hidden = false;
+}
+
 // ── Can configuration ────────────────────────────────────────────────────────
 
 const CAN_STORAGE_KEY     = "dmms:cans";
@@ -64,7 +127,25 @@ const STORAGE_KEYS = {
   dismissed:   "dmms:dismissed",
   resetOffset: "dmms:liveResetOffset",
   demoIndex:   "dmms:demoIndex",
+  settings:    "dmms:settings",
+  loaded:      "dmms:loaded",
 };
+
+// ── Display settings (timeout + auto-scroll) ─────────────────────────────────
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEYS.settings) || "null");
+    if (s && typeof s === "object") {
+      return { timeoutEnabled: false, timeoutSecs: 30, autoScrollEnabled: false, ...s };
+    }
+  } catch { /* ignore */ }
+  return { timeoutEnabled: false, timeoutSecs: 30, autoScrollEnabled: false };
+}
+function saveSettings() {
+  try { localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings)); } catch { /* ok */ }
+}
+const settings = loadSettings();
 
 let _canSeq = 0;
 function nextCanId() { return `can_${++_canSeq}`; }
@@ -105,6 +186,7 @@ const state = {
   playing:         false,
   timer:           null,
   dismissed:       new Set(),
+  loaded:          loadLoaded(),
   seq:             0,
   liveResetOffset: 0,
 };
@@ -117,6 +199,13 @@ function loadDismissed() {
 }
 function saveDismissed(set) {
   try { localStorage.setItem(STORAGE_KEYS.dismissed, JSON.stringify([...set])); } catch { /* ok */ }
+}
+function loadLoaded() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.loaded) || "[]")); }
+  catch { return new Set(); }
+}
+function saveLoaded(set) {
+  try { localStorage.setItem(STORAGE_KEYS.loaded, JSON.stringify([...set])); } catch { /* ok */ }
 }
 function loadResetOffset() {
   const n = Number(localStorage.getItem(STORAGE_KEYS.resetOffset));
@@ -205,6 +294,20 @@ function generateRandomEvent() {
   };
 }
 
+// ── Airline IATA helper ─────────────────────────────────────────────────────
+
+function iataCode(flightNumber) {
+  // "QF298" → "QF", "NZ499" → "NZ", "SG334" → "SG"
+  const m = String(flightNumber || "").match(/^([A-Z]{2,3})/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+function airlineLogoUrl(flightNumber) {
+  const code = iataCode(flightNumber);
+  if (!code) return null;
+  return `resources/airlines/${code}.png`;
+}
+
 // ── Can routing ──────────────────────────────────────────────────────────────
 
 function canIndexFor(event) {
@@ -239,26 +342,49 @@ function buildQuadrantShells() {
   state.cans.forEach((can, i) => {
     const color = canColor(i);
     const flightLabel = can.flight
-      ? `<span class="can-flight-display" style="color:${color}">${can.flight.toUpperCase()}</span>`
+      ? `<span class="can-flight-display">${can.flight.toUpperCase()}</span>`
       : `<span class="can-flight-display can-no-flight">— unassigned —</span>`;
+
+    // Look up departure time for this can's assigned flight
+    const flightData = can.flight
+      ? state.flights.find((f) => f.flight_number && f.flight_number.toUpperCase() === can.flight.toUpperCase())
+      : null;
+    const depLabel = (flightData && flightData.departure_time)
+      ? `<span class="can-dep-time" title="Scheduled departure">${flightData.departure_time}</span>`
+      : "";
+    const destLabel = (flightData && flightData.destination)
+      ? `<span class="can-dest-display">${flightData.destination}${flightData.destination_name ? " · " + flightData.destination_name : ""}</span>`
+      : "";
 
     const section = document.createElement("section");
     section.className   = "quadrant";
     section.dataset.can = String(i);
     section.dataset.canId = can.id;
     section.style.setProperty("--cat", color);
+    const logoUrl = can.flight ? airlineLogoUrl(can.flight) : null;
+    const logoHtml = logoUrl
+      ? `<img class="airline-logo" src="${logoUrl}"
+              alt="${iataCode(can.flight) || ""}"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"
+         /><span class="quadrant-dot" style="display:none"></span>`
+      : `<span class="quadrant-dot"></span>`;
+
     section.innerHTML = `
-      <div class="quadrant-header">
+      <div class="quadrant-sidebar">
+        <div class="sidebar-logo-wrap">
+          ${logoHtml}
+        </div>
         <span class="quadrant-label">
-          <span class="quadrant-dot"></span>
-          ${flightLabel}
           <span class="can-name-display">${can.label}</span>
         </span>
-        <div class="quadrant-actions">
-          <span class="quadrant-count" id="quadrant-count-${i}">0</span>
-        </div>
+        ${flightLabel}
+        ${destLabel}
+        ${depLabel}
+        <span class="quadrant-count" id="quadrant-count-${i}">0</span>
       </div>
-      <div class="tile-grid" id="quadrant-grid-${i}"></div>
+      <div class="quadrant-content">
+        <div class="tile-grid" id="quadrant-grid-${i}"></div>
+      </div>
     `;
     container.appendChild(section);
   });
@@ -291,11 +417,16 @@ function makeTile(event, { statusChip = null } = {}) {
   }
 
   const sub = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
+  // Only show destination on the tile if it differs from the can's assigned flight
+  // (catches connecting/misrouted bags); otherwise it's redundant — shown in sidebar
+  const eventDest  = (event.destination || "").toUpperCase();
+  const canDest    = (event._expectedDest || "").toUpperCase();
+  const showDest   = eventDest && (!canDest || eventDest !== canDest);
   const caption = document.createElement("div");
   caption.className = "tile-caption";
   caption.innerHTML = `
-    <div class="tile-flight">${event.flight_number || "Unknown flight"}</div>
-    <div class="tile-destination">${event.destination || "Unknown destination"}</div>
+    <div class="tile-flight">${event.flight_number || "?"}</div>
+    ${showDest ? `<div class="tile-destination">⚠ ${event.destination}</div>` : ""}
     <div class="tile-sub">${sub}</div>
   `;
 
@@ -318,12 +449,34 @@ function makeTile(event, { statusChip = null } = {}) {
   });
   tile.addEventListener("dblclick", () => {
     clearTimeout(clickTimer);
-    const ev  = tile._eventRef;
-    const ids = (ev._groupIds && ev._groupIds.length) ? ev._groupIds : [ev.id];
-    ids.forEach((id) => state.dismissed.add(id));
-    if (IS_LIVE) saveDismissed(state.dismissed);
-    render();
+    const ev = tile._eventRef;
+    showDismissModal(ev, (markLoaded) => {
+      // Dismiss all related event IDs so the tile disappears
+      const ids = (ev._groupIds && ev._groupIds.length) ? ev._groupIds : [ev.id];
+      ids.forEach((id) => state.dismissed.add(id));
+      if (IS_LIVE) saveDismissed(state.dismissed);
+      // Only increment loaded counter on explicit confirmation, counting as 1 bag
+      if (markLoaded) {
+        state.loaded.add(ev.id);   // ev.id is canonical (group key for dup groups)
+        if (IS_LIVE) saveLoaded(state.loaded);
+
+        // Duplicates are already bundled via _groupIds and dismissed above.
+        // Auto-dismissal by flight number removed — too broad (would clear all
+        // bags on the same flight). Barcode-level linking requires a consistent
+        // barcode field from the scanner; wire it here when available.
+      }
+      render();
+    });
   });
+
+  // Countdown bar (shown when auto-clear timeout is enabled)
+  if (settings.timeoutEnabled) {
+    const bar = document.createElement("div");
+    bar.className = "tile-countdown";
+    bar.style.setProperty("--countdown-dur", settings.timeoutSecs + "s");
+    tile.appendChild(bar);
+    tile.dataset.expiresAt = String(Date.now() + settings.timeoutSecs * 1000);
+  }
 
   return tile;
 }
@@ -345,10 +498,21 @@ function openZoom(event) {
 
 // ── Grid filling ─────────────────────────────────────────────────────────────
 
-function fillGrid(gridEl, items, { emptyText, statusChipFor = null }, seenIds) {
-  const { cols, rows } = gridDims(items.length);
-  gridEl.style.setProperty("--cols", cols);
-  gridEl.style.setProperty("--rows", rows);
+function fillGrid(gridEl, items, { emptyText, statusChipFor = null, layout = 'grid' }, seenIds) {
+  if (layout === "row") {
+    // Single horizontal row — carousel kicks in past the threshold
+    gridEl.classList.add("row-layout");
+    gridEl.classList.remove("grid-layout");
+    const useCarousel = items.length > CAROUSEL_THRESHOLD;
+    gridEl.classList.toggle("carousel-mode", useCarousel);
+  } else {
+    // 2-D CSS grid (attention tray etc.)
+    gridEl.classList.add("grid-layout");
+    gridEl.classList.remove("row-layout", "carousel-mode");
+    const { cols, rows } = gridDims(items.length);
+    gridEl.style.setProperty("--cols", cols);
+    gridEl.style.setProperty("--rows", rows);
+  }
 
   if (!items.length) {
     // Only rebuild if not already showing the empty state
@@ -424,7 +588,7 @@ function render() {
 
   const scannedSoFar = state.events.slice(0, state.index + 1);
   const visible      = scannedSoFar.filter((e) => !state.dismissed.has(e.id));
-  const loaded       = scannedSoFar.length - visible.length;
+  const loaded       = state.loaded.size;
 
   const buckets   = Array.from({ length: state.cans.length }, () => []);
   const attention = [];
@@ -436,6 +600,12 @@ function render() {
     }
     const idx = canIndexFor(event);
     if (idx >= 0 && idx < state.cans.length) {
+      // Tag expected destination so the tile can suppress it if it matches
+      const canFlight = state.flights.find(
+        (f) => f.flight_number && state.cans[idx].flight &&
+               f.flight_number.toUpperCase() === state.cans[idx].flight.toUpperCase()
+      );
+      event._expectedDest = canFlight ? (canFlight.destination || "").toUpperCase() : "";
       buckets[idx].push(event);
     } else {
       event._noRoute = true;
@@ -450,7 +620,7 @@ function render() {
       const gridEl  = el(`quadrant-grid-${i}`);
       const countEl = el(`quadrant-count-${i}`);
       if (!gridEl) return;
-      fillGrid(gridEl, buckets[i], { emptyText: "Waiting for bags…" }, seenIds);
+      fillGrid(gridEl, buckets[i], { emptyText: "Waiting for bags…", layout: "row" }, seenIds);
       if (countEl) countEl.textContent = String(buckets[i].length);
     });
   }
@@ -511,6 +681,45 @@ function render() {
   if (el("stat-flagged")) el("stat-flagged").textContent = String(attention.length);
   if (el("stat-loaded"))  el("stat-loaded").textContent  = String(loaded);
 }
+
+// ── Timeout checker ──────────────────────────────────────────────────────────
+
+function checkTimeouts() {
+  if (!settings.timeoutEnabled) return;
+  const now = Date.now();
+  let anyExpired = false;
+  tileCache.forEach((tile, id) => {
+    const exp = Number(tile.dataset.expiresAt);
+    if (!exp || state.dismissed.has(id)) return;
+    if (now >= exp) {
+      const ev = tile._eventRef;
+      const ids = (ev && ev._groupIds && ev._groupIds.length) ? ev._groupIds : [id];
+      ids.forEach((i) => state.dismissed.add(i));
+      if (IS_LIVE) saveDismissed(state.dismissed);
+      anyExpired = true;
+    }
+  });
+  if (anyExpired) render();
+}
+setInterval(checkTimeouts, 1000);
+
+// ── Carousel auto-scroll ─────────────────────────────────────────────────────
+
+function tickCarousels() {
+  if (!settings.autoScrollEnabled) return;
+  document.querySelectorAll(".tile-grid.carousel-mode").forEach((grid) => {
+    const maxScroll = grid.scrollWidth - grid.clientWidth;
+    if (maxScroll <= 2) return;
+    if (grid.scrollLeft >= maxScroll - 10) {
+      grid.scrollTo({ left: 0, behavior: "smooth" });
+    } else {
+      const firstTile = grid.querySelector(".tile");
+      const tileW = firstTile ? (firstTile.offsetWidth + 6) : 130;
+      grid.scrollBy({ left: tileW, behavior: "smooth" });
+    }
+  });
+}
+setInterval(tickCarousels, 3000);
 
 // ── Demo playback ────────────────────────────────────────────────────────────
 
@@ -588,6 +797,42 @@ function openCansWindow() {
 const manageCansBtn = el("btn-manage-cans");
 if (manageCansBtn) manageCansBtn.addEventListener("click", openCansWindow);
 
+// ── Settings toggles ─────────────────────────────────────────────────────────
+
+const togTimeout    = el("tog-timeout");
+const timeoutSecsEl = el("timeout-secs");
+const togAutoscroll = el("tog-autoscroll");
+
+if (togTimeout) {
+  togTimeout.checked = settings.timeoutEnabled;
+  if (timeoutSecsEl) {
+    timeoutSecsEl.value    = settings.timeoutSecs;
+    timeoutSecsEl.disabled = !settings.timeoutEnabled;
+    timeoutSecsEl.addEventListener("change", () => {
+      settings.timeoutSecs = Math.max(5, Number(timeoutSecsEl.value) || 30);
+      timeoutSecsEl.value  = settings.timeoutSecs;
+      saveSettings();
+      tileCache.clear();
+      render();
+    });
+  }
+  togTimeout.addEventListener("change", () => {
+    settings.timeoutEnabled = togTimeout.checked;
+    if (timeoutSecsEl) timeoutSecsEl.disabled = !settings.timeoutEnabled;
+    saveSettings();
+    tileCache.clear();   // rebuild tiles with/without countdown bars
+    render();
+  });
+}
+
+if (togAutoscroll) {
+  togAutoscroll.checked = settings.autoScrollEnabled;
+  togAutoscroll.addEventListener("change", () => {
+    settings.autoScrollEnabled = togAutoscroll.checked;
+    saveSettings();
+  });
+}
+
 const openAttentionBtn = el("btn-open-attention");
 if (openAttentionBtn) {
   openAttentionBtn.addEventListener("click", () => {
@@ -599,6 +844,19 @@ if (openAttentionBtn) {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
+
+// Live clock — updates every second
+(function () {
+  function updateClock() {
+    const clockEl = document.getElementById("live-clock");
+    if (!clockEl) return;
+    clockEl.textContent = new Date().toLocaleTimeString(undefined, {
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+}());
 
 buildQuadrantShells();
 render();
@@ -617,10 +875,12 @@ if (IS_LIVE) {
       state.liveResetOffset += state.events.length;
       state.events    = [];
       state.dismissed = new Set();
+      state.loaded    = new Set();
       state.index     = -1;
       tileCache.clear();
       saveResetOffset(state.liveResetOffset);
       saveDismissed(state.dismissed);
+      saveLoaded(state.loaded);
       render();
     });
   }
