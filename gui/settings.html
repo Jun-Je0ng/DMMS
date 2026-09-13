@@ -115,8 +115,8 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .preset-btn:hover { border-color: var(--accent); color: var(--accent-light); }
-  .preset-btn.active { border-color: var(--accent); color: var(--accent-light); background: rgba(36,97,200,0.12); }
+  .preset-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .preset-btn.active { border-color: var(--border-strong); color: var(--text-primary); background: var(--surface-3); }
 
   .btn-secondary {
     background: var(--surface-2);
@@ -131,7 +131,7 @@
     letter-spacing: 0.06em;
     white-space: nowrap;
   }
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent-light); }
+  .btn-secondary:hover { border-color: var(--border-strong); color: var(--text-primary); }
   .btn-secondary:disabled { opacity: 0.4; cursor: default; }
 
   .inline-row {
@@ -168,8 +168,8 @@
     cursor: pointer;
     font-size: 12px;
   }
-  .cam-row:hover { border-color: var(--accent); }
-  .cam-row.selected { border-color: var(--accent); background: rgba(36,97,200,0.12); }
+  .cam-row:hover { border-color: var(--border-strong); }
+  .cam-row.selected { border-color: var(--border-strong); background: var(--surface-3); }
   .cam-row .idx { font-family: var(--mono); font-weight: 700; }
   .cam-row .res { color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
 
@@ -205,7 +205,7 @@
     justify-content: space-between;
     gap: 10px;
   }
-  .port-row:hover { border-color: var(--accent); }
+  .port-row:hover { border-color: var(--border-strong); }
   .port-row .dev { font-family: var(--mono); font-weight: 700; }
   .port-row .desc { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

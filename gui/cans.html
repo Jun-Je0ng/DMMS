@@ -126,7 +126,7 @@
   .can-select:focus,
   .can-input:focus { border-color: var(--accent); }
 
-  .can-select option { background: #172640; color: #edf2f8; }
+  .can-select option { background: var(--surface-2); color: var(--text-primary); }
 
   .can-remove-row-btn {
     background: none;
@@ -189,8 +189,8 @@
   }
 
   .tab-btn.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
+    color: var(--text-primary);
+    border-bottom-color: var(--text-secondary);
   }
 
   .tab-btn:hover:not(.active) { color: var(--text-secondary); }
@@ -250,7 +250,7 @@
   .form-select:focus,
   .form-input:focus { border-color: var(--accent); }
 
-  .form-select option { background: #172640; color: #edf2f8; }
+  .form-select option { background: var(--surface-2); color: var(--text-primary); }
 
   .form-hint {
     font-size: 10px;
@@ -259,9 +259,9 @@
   }
 
   .btn-primary {
-    background: rgba(36, 97, 200, 0.15);
-    border: 1px solid rgba(36, 97, 200, 0.45);
-    color: #7aacf0;
+    background: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    color: var(--text-secondary);
     padding: 9px 0;
     border-radius: var(--radius-md);
     cursor: pointer;
@@ -274,8 +274,8 @@
     margin-top: 4px;
   }
   .btn-primary:hover {
-    background: rgba(36, 97, 200, 0.28);
-    border-color: var(--accent);
+    background: var(--surface-2);
+    border-color: var(--text-muted);
     color: #fff;
   }
 

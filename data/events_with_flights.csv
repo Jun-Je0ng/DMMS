@@ -1,4 +1,2 @@
 id,timestamp,status,tag_id,flight_number,destination,trigger_source,trigger_raw,capture_ok,capture_path
-bag_20260913200828_1,2026-09-13T20:08:32,matched,LM219-CGK,LM219,CGK,simulated,sim-sensor,False,
-bag_20260913200828_2,2026-09-13T20:08:34,manual,,,,simulated,sim-sensor,False,
-bag_20260913200828_2,2026-09-13T20:08:37,matched,SG334-SNG,SG334,SNG,late-match,,False,
+bag_20260914085254_1,2026-09-14T08:52:58,manual,,,,simulated,sim-sensor,False,

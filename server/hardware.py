@@ -205,7 +205,7 @@ class CameraCapture:
         stamp  = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         suffix = f"_{label}" if label else ""
         path   = self.save_dir / f"bag_{stamp}{suffix}.jpg"
-        if not cv2.imwrite(str(path), frame):
+        if not cv2.imwrite(str(path).replace("\\", "/"), frame):
             print(f"Camera capture: cv2.imwrite failed writing {path}")
             return None
         return path

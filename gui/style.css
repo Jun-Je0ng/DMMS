@@ -28,11 +28,11 @@
   /* -- Borders --------------------------------------------- */
   --border:         rgba(255, 255, 255, 0.10);
   --border-strong:  rgba(255, 255, 255, 0.20);
-  --border-accent:  rgba(36, 97, 200, 0.45);
+  --border-accent:  rgba(180, 180, 180, 0.35);
 
   /* -- Brand accent ---------------------------------------- */
-  --accent:         #2461c8;
-  --accent-light:   #4d8de8;
+  --accent:         #888888;
+  --accent-light:   #bbbbbb;
 
   /* FIDS display yellow — flight numbers, key callouts */
   --fids-yellow:    #f5d000;
@@ -50,10 +50,10 @@
   --neutral-bg:  rgba(139, 164, 194, 0.08);
 
   /* -- Categorical: one colour per can, never reassigned --- */
-  --cat-1: #2461c8;   /* SAAS blue  — Can A */
-  --cat-2: #c47a00;   /* gold/amber — Can B */
-  --cat-3: #0f8a60;   /* teal green — Can C */
-  --cat-4: #7050b8;   /* indigo     — Can D */
+  --cat-1: #888888;   /* neutral gray    — Can A */
+  --cat-2: #aaaaaa;   /* light gray      — Can B */
+  --cat-3: #666666;   /* mid gray        — Can C */
+  --cat-4: #999999;   /* warm gray       — Can D */
 
   /* -- Shape ----------------------------------------------- */
   --ui-scale: 1;        /* set by config.js; increase for large screens */
@@ -97,7 +97,7 @@ body {
 .kiosk {
   height: 100vh;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto 1fr auto;
   gap: 8px;
   padding: 12px 20px 10px;
 }
@@ -202,7 +202,7 @@ body {
 
 .stat-good    .stat-value { color: var(--good); }
 .stat-flagged .stat-value { color: var(--warning); }
-.stat-accent  .stat-value { color: var(--accent-light); }
+.stat-accent  .stat-value { color: var(--text-primary); }
 
 /* ---- Live clock ----------------------------------------- */
 
@@ -224,7 +224,7 @@ body {
   font-size: 24px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--accent-light);
+  color: var(--text-primary);
   line-height: 1;
   letter-spacing: 0.04em;
 }
@@ -1082,7 +1082,7 @@ body {
 .can-dep-time {
   display: block;
   font-family: var(--mono);
-  font-size: clamp(calc(16px * var(--ui-scale)), calc(1.8vw * var(--ui-scale)), calc(30px * var(--ui-scale)));
+  font-size: clamp(calc(10px * var(--ui-scale)), calc(1.2vw * var(--ui-scale)), calc(16px * var(--ui-scale)));
   font-weight: 700;
   color: var(--fids-yellow);
   letter-spacing: 0.06em;

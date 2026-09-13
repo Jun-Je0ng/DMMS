@@ -1,18 +1,10 @@
 [
   {
-    "id": "bag_20260913200828_1",
-    "timestamp": "2026-09-13T20:08:32",
-    "status": "matched",
-    "flight_number": "LM219",
-    "destination": "CGK",
-    "photo_path": null
-  },
-  {
-    "id": "bag_20260913200828_2",
-    "timestamp": "2026-09-13T20:08:34",
-    "status": "matched",
-    "flight_number": "SG334",
-    "destination": "SNG",
+    "id": "bag_20260914085254_1",
+    "timestamp": "2026-09-14T08:52:58",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
     "photo_path": null
   }
 ]

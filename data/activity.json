@@ -1,22 +1,7 @@
 [
   {
-    "kind": "scan",
-    "ts": 1789294110.1392388,
-    "detail": "LM219-CGK"
-  },
-  {
     "kind": "trigger",
-    "ts": 1789294112.9836085,
+    "ts": 1789339978.006974,
     "detail": "sim-sensor"
-  },
-  {
-    "kind": "trigger",
-    "ts": 1789294114.8490486,
-    "detail": "sim-sensor"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789294117.770594,
-    "detail": "SG334-SNG"
   }
 ]

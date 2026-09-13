@@ -59,6 +59,7 @@ import config    # noqa: E402
 import settings  # noqa: E402
 from pipeline import ActivityFeed, EventLog, LiveFeed, Pairer
 from sim      import SimulatedBarcodeSource
+from hardware import CameraCapture
 
 # ── Flights ───────────────────────────────────────────────────────────────────
 _FLIGHTS_FILE = _ROOT / "gui" / "flights.json"
@@ -126,7 +127,18 @@ def main():
     flights     = _load_flights()
     eff         = settings.load(config)   # config.py defaults + gui/settings.json overrides
     sim_barcode = SimulatedBarcodeSource(flights)
-    camera      = _NoCamera()
+
+    # Try to open the camera index chosen in the Settings page (or config.py's
+    # default).  Fall back to _NoCamera silently so the simulation still runs
+    # even when no webcam is available.
+    camera_index = int(eff.CAMERA_INDEX) if eff.CAMERA_INDEX is not None else 0
+    try:
+        camera = CameraCapture(camera_index, save_dir=str(_ROOT / "data" / "captures"))
+        camera.open()
+        print(f"Camera opened at index {camera_index}.")
+    except Exception as exc:
+        print(f"Camera index {camera_index} unavailable ({exc}) — running without camera.")
+        camera = _NoCamera()
 
     def on_late_match(bag_id: str, resolution):
         # 't' resolved 'manual' immediately (it can't see a scan that
@@ -187,9 +199,19 @@ def main():
         resolution = pairer.resolve_trigger(trigger_ts, bag_id=bag_id)
         path       = camera.capture(label="sim")
 
+        # Convert the absolute capture path to a path relative to data/ so
+        # the GUI can serve it as: ../data/<rel_path>  (IMAGE_BASE_URL in app.js).
+        rel_path = None
+        if path is not None:
+            try:
+                rel_path = str(path.relative_to(_ROOT / "data")).replace("\\", "/")
+            except ValueError:
+                rel_path = None   # unexpected path — skip rather than 404
+
         if resolution.tag_id:
             print(f"  [sensor]  {bag_id}: {resolution.status} "
-                  f"— paired with {resolution.tag_id} ({resolution.flight_number or '?'})")
+                  f"— paired with {resolution.tag_id} ({resolution.flight_number or '?'})"
+                  + (f" — photo: {rel_path}" if rel_path else " — no photo"))
         else:
             print(f"  [sensor]  {bag_id}: {resolution.status} for now — no scan paired with it yet "
                   f"(press 'b' within {eff.PAIR_WINDOW:g}s to still claim it)")
@@ -197,14 +219,14 @@ def main():
         log.record(
             id=bag_id, status=resolution.status,
             trigger_source="simulated", trigger_raw="sim-sensor",
-            capture_ok=False, capture_path="",
+            capture_ok=rel_path is not None, capture_path=rel_path or "",
             tag_id=resolution.tag_id or "",
             flight_number=resolution.flight_number or "",
             destination=resolution.destination or "",
         )
         live.add(
             id=bag_id, timestamp=_iso(trigger_ts), status=resolution.status,
-            photo_path=None,
+            photo_path=rel_path,
             flight_number=resolution.flight_number,
             destination=resolution.destination,
         )
@@ -258,6 +280,8 @@ def main():
         print("\nStopped.")
         stop_event.set()
         log.close()
+        if hasattr(camera, "close"):
+            camera.close()
 
 
 if __name__ == "__main__":

@@ -24,8 +24,8 @@ const ZOOM_CLICK_DELAY_MS = 220;
 const CAROUSEL_THRESHOLD  = 4;   // beyond this many tiles, use a horizontal carousel
 
 const CAN_COLORS = [
-  "#2461c8","#c47a00","#0f8a60","#7050b8",
-  "#1788b8","#b85010","#186040","#9040a0",
+  "#888888","#aaaaaa","#666666","#999999",
+  "#777777","#bbbbbb","#555555","#b0b0b0",
 ];
 
 // Apply display scale from config.js
@@ -72,10 +72,10 @@ function ensureDismissModal() {
       <p class="dismiss-modal-info" id="dismiss-modal-info"></p>
       <div class="dismiss-modal-actions">
         <button id="dismiss-btn-loaded" class="dismiss-btn dismiss-btn-loaded">
-          ✓ &nbsp;Mark as Loaded
+          Mark as Loaded
         </button>
         <button id="dismiss-btn-remove" class="dismiss-btn dismiss-btn-remove">
-          ✕ &nbsp;Remove from Board
+          Remove from Board
         </button>
         <button id="dismiss-btn-cancel" class="dismiss-btn dismiss-btn-cancel">
           Cancel
@@ -451,7 +451,7 @@ function makeTile(event, { statusChip = null } = {}) {
   caption.className = "tile-caption";
   caption.innerHTML = `
     <div class="tile-flight">${event.flight_number || "?"}</div>
-    ${showDest ? `<div class="tile-destination">⚠ ${event.destination}</div>` : ""}
+    ${showDest ? `<div class="tile-destination">${event.destination}</div>` : ""}
     <div class="tile-sub">${sub}</div>
   `;
 
@@ -807,7 +807,7 @@ function stepBackward() { goTo(state.index - 1); }
 function setPlaying(playing) {
   state.playing = playing;
   const btn = el("btn-play");
-  if (btn) btn.textContent = playing ? "⏸" : "▶";
+  if (btn) btn.textContent = playing ? "Pause" : "Play";
   clearInterval(state.timer);
   if (playing) state.timer = setInterval(stepForward, ADVANCE_MS);
 }
@@ -928,7 +928,7 @@ function flagAttentionBlocked() {
   const btn = el("btn-open-attention");
   if (!btn) return;
   btn.classList.add("attention-blocked");
-  btn.textContent = "⚠ Blocked — click to allow";
+  btn.textContent = "Blocked — click to allow";
 }
 
 // ── Manage Cans window ────────────────────────────────────────────────────────
@@ -982,7 +982,7 @@ const openAttentionBtn = el("btn-open-attention");
 if (openAttentionBtn) {
   openAttentionBtn.addEventListener("click", () => {
     openAttentionBtn.classList.remove("attention-blocked");
-    openAttentionBtn.textContent = "Needs Attention ↗";
+    openAttentionBtn.textContent = "Needs Attention";
     openAttentionWindow();
   });
   openAttentionWindow();
@@ -1008,11 +1008,6 @@ render();
 
 if (IS_LIVE) {
   document.body.classList.add("live-mode");
-  const banner = el("mode-banner");
-  if (banner) {
-    banner.classList.add("live");
-    banner.innerHTML = "<strong>LIVE</strong> &mdash; polling <code>live_events.json</code> from main.py.";
-  }
 
   const resetBtn = el("btn-reset");
   if (resetBtn) {
