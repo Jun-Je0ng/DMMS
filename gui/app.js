@@ -13,12 +13,11 @@
 // This page listens for storage changes and re-renders instantly when cans
 // are added, removed, or reassigned from the management tab.
 
-const _CFG    = window.DMMS_CONFIG || {};
-const IS_LIVE = new URLSearchParams(location.search).has("live");
-const DATA_URL    = IS_LIVE
-  ? "../python/camera_subsystem/live_events.json"
-  : "../python/camera_subsystem/mock_events.json";
-const IMAGE_BASE_URL = "../python/camera_subsystem/";
+const _CFG           = window.DMMS_CONFIG || {};
+const IS_LIVE        = true;   // always live — use sim_runner.py for simulation
+const DATA_URL       = "../data/live_events.json";
+const IMAGE_BASE_URL = "../data/";
+const LOADED_API_URL = "/api/loaded";
 const ADVANCE_MS          = 2500;
 const LIVE_POLL_MS        = 1500;
 const ZOOM_CLICK_DELAY_MS = 220;
@@ -174,6 +173,32 @@ function loadFlightsFromStorage() {
     if (Array.isArray(p)) return p;
   } catch { /* ignore */ }
   return [];
+}
+
+async function loadCansFromFile() {
+  try {
+    const r = await fetch("/api/cans");
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    if (Array.isArray(data) && data.length) {
+      try { localStorage.setItem(CAN_STORAGE_KEY, JSON.stringify(data)); } catch {}
+      return data;
+    }
+  } catch {}
+  return null;
+}
+
+async function loadFlightsFromFile() {
+  try {
+    const r = await fetch("/api/flights");
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    if (Array.isArray(data)) {
+      try { localStorage.setItem(FLIGHTS_STORAGE_KEY, JSON.stringify(data)); } catch {}
+      return data;
+    }
+  } catch {}
+  return null;
 }
 
 // ── Application state ────────────────────────────────────────────────────────
@@ -432,6 +457,15 @@ function makeTile(event, { statusChip = null } = {}) {
 
   tile.appendChild(photo);
 
+  // Bag tag — the short number staff type into the mobile keypad
+  // confirmation page, and the number the swipe page shows per card.
+  if (event._tag) {
+    const tag = document.createElement("span");
+    tag.className   = "tile-tag";
+    tag.textContent = `#${event._tag}`;
+    tile.appendChild(tag);
+  }
+
   if (statusChip) {
     const chip = document.createElement("span");
     chip.className   = `tile-status-chip ${statusChip.className}`;
@@ -459,6 +493,7 @@ function makeTile(event, { statusChip = null } = {}) {
       if (markLoaded) {
         state.loaded.add(ev.id);   // ev.id is canonical (group key for dup groups)
         if (IS_LIVE) saveLoaded(state.loaded);
+        postMarkLoaded(ev, "board");
 
         // Duplicates are already bundled via _groupIds and dismissed above.
         // Auto-dismissal by flight number removed — too broad (would clear all
@@ -749,7 +784,19 @@ function setPlaying(playing) {
 
 // ── Live polling ─────────────────────────────────────────────────────────────
 
+// Every bag gets a short, human-friendly "tag" number — its 1-based
+// position in the full live_events.json feed. This is the same number
+// the mobile keypad confirmation page (mobile_keypad.html) asks staff
+// to type in, and the same one the swipe page (mobile_swipe.html)
+// shows on each card, so it has to be computed identically everywhere:
+// stamped on the raw (unsliced, un-reset) event list, in feed order.
+function stampTags(rawEvents) {
+  rawEvents.forEach((event, i) => { event._tag = i + 1; });
+  return rawEvents;
+}
+
 function setLiveEvents(rawEvents) {
+  stampTags(rawEvents);
   state.liveResetOffset = loadResetOffset();
   if (rawEvents.length < state.liveResetOffset) {
     state.liveResetOffset = 0;
@@ -768,6 +815,50 @@ function pollLive() {
     .then((r) => r.json())
     .then(setLiveEvents)
     .catch((err) => console.error(err));
+}
+
+// ── Mobile confirmation sync ─────────────────────────────────────────────────
+// The mobile swipe/keypad pages (served from the same origin) mark bags
+// "Loaded" through /api/loaded/mark instead of localStorage, because a
+// phone is a different browser than the kiosk. Pull that shared state in
+// on every poll and fold it into the board's own dismissed/loaded sets so
+// a bag confirmed on a phone disappears from the board just like one
+// double-click-confirmed at the kiosk.
+function pollServerLoaded() {
+  fetch(LOADED_API_URL)
+    .then((r) => (r.ok ? r.json() : []))
+    .then((records) => {
+      if (!Array.isArray(records) || !records.length) return;
+      let changed = false;
+      records.forEach((rec) => {
+        const id = rec && rec.id;
+        if (!id || state.loaded.has(id)) return;
+        state.loaded.add(id);
+        state.dismissed.add(id);
+        changed = true;
+      });
+      if (changed) {
+        saveLoaded(state.loaded);
+        saveDismissed(state.dismissed);
+        render();
+      }
+    })
+    .catch(() => { /* mobile sync is best-effort — board still works offline */ });
+}
+
+// Fire-and-forget: tell the server a bag was confirmed loaded (or the
+// confirmation was undone) so mobile pages and other kiosk windows see it.
+function postMarkLoaded(event, source) {
+  fetch(`${LOADED_API_URL}/mark`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id:            event.id,
+      flight_number: event.flight_number || null,
+      tag:           event._tag || null,
+      source:        source || "board",
+    }),
+  }).catch(() => { /* best-effort */ });
 }
 
 // ── Attention window ─────────────────────────────────────────────────────────
@@ -886,7 +977,9 @@ if (IS_LIVE) {
   }
 
   pollLive();
+  pollServerLoaded();
   setInterval(pollLive, LIVE_POLL_MS);
+  setInterval(pollServerLoaded, LIVE_POLL_MS);
 } else {
   const prevBtn = el("btn-prev");
   const nextBtn = el("btn-next");

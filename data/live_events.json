@@ -1,0 +1,58 @@
+[
+  {
+    "id": "bag_20260913190134_1",
+    "timestamp": "2026-09-13T19:01:37",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "scan_20260913190134_2",
+    "timestamp": "2026-09-13T19:01:51",
+    "status": "unmatched_scan",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "bag_20260913190134_3",
+    "timestamp": "2026-09-13T19:02:07",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "scan_20260913190134_4",
+    "timestamp": "2026-09-13T19:02:08",
+    "status": "unmatched_scan",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "bag_20260913190134_5",
+    "timestamp": "2026-09-13T19:02:22",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "scan_20260913190134_6",
+    "timestamp": "2026-09-13T19:02:22",
+    "status": "unmatched_scan",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "scan_20260913190134_7",
+    "timestamp": "2026-09-13T19:02:24",
+    "status": "unmatched_scan",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  }
+]

@@ -1,11 +1,11 @@
 """
-Simulated barcode source -- for running the full pipeline with no scanner
-attached. Generates a fake tag per trigger as "<flight_number>-<destination>"
-(e.g. "KR712-MEL"), cycling through flights.csv.
+sim.py — simulated barcode source for running the full pipeline without a scanner.
 
-Cycling a short list means the same tag naturally repeats every len(flights)
-bags -- combined with the real Pairer duplicate-detection logic, that
-exercises the "duplicate" status realistically too, not just "matched".
+Generates a fake tag per trigger as "<flight_number>-<destination>"
+(e.g. "QF298-SYD"), cycling through the flight list. Cycling a short list
+means the same tag naturally repeats every len(flights) bags — combined with
+Pairer's duplicate-detection logic, that exercises the "duplicate" status
+realistically, not just "matched".
 """
 
 import itertools
@@ -22,10 +22,10 @@ class SimulatedBarcodeSource:
     def next_tag(self) -> str:
         """Generate the next fake tag and remember which flight it encodes."""
         flight = next(self._cycle)
-        tag = f"{flight['flight_number']}-{flight['destination']}"
+        tag    = f"{flight['flight_number']}-{flight['destination']}"
         self._known[tag] = flight
         return tag
 
     def lookup(self, tag_id: str) -> dict:
-        """Pairer.flight_lookup callback -- the tag already carries the flight."""
+        """Pairer.flight_lookup callback — the tag already carries the flight."""
         return self._known.get(tag_id, {})

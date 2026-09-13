@@ -551,6 +551,104 @@ body {
 .tile-status-chip.status-unmatched_scan{ background: var(--critical-bg); color: var(--critical); border: 1px solid rgba(184,48,48,0.3); }
 .tile-status-chip.status-ambiguous     { background: var(--neutral-bg);  color: var(--text-secondary); border: 1px solid var(--border); }
 
+/* ---- Mobile Access QR modal ------------------------------- */
+
+.qr-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+.qr-modal[hidden] { display: none; }
+
+.qr-modal-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 26px 30px;
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.qr-modal-box h2 { margin: 0 0 6px; font-size: 18px; }
+
+.qr-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.qr-modal-close:hover { color: var(--text-primary); }
+
+.qr-modal-grid {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.qr-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  width: 220px;
+}
+
+.qr-canvas-wrap {
+  background: #fff;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+  line-height: 0;
+}
+
+.qr-card-title { margin-top: 10px; font-weight: 700; font-size: 13px; }
+.qr-card-url {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  word-break: break-all;
+  margin-top: 4px;
+  min-height: 26px;
+}
+.qr-card-open {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--accent-light);
+  text-decoration: none;
+}
+.qr-card-open:hover { text-decoration: underline; }
+
+/* Bag tag — short number for the mobile keypad confirmation page */
+.tile-tag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+}
+
 /* Empty placeholder */
 .tile-empty {
   grid-column: 1 / -1;
@@ -726,6 +824,7 @@ body {
 .live-mode .demo-controls { visibility: hidden; }
 
 .footer-button {
+  display: inline-block;
   background: var(--surface-1);
   border: 1px solid var(--border);
   color: var(--text-secondary);
@@ -736,8 +835,11 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  text-decoration: none;
   transition: border-color 0.1s, color 0.1s;
 }
+
+.footer-button:hover { border-color: var(--accent); color: var(--accent-light); }
 
 .attention-open-button:hover {
   border-color: var(--warning);

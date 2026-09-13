@@ -1,6 +1,18 @@
-import unittest
+"""
+tests/test_pipeline.py — unit tests for Pairer (pipeline.py).
 
-from pairing import Pairer
+Run from repo root:
+  python -m pytest tests/test_pipeline.py -v
+or:
+  python tests/test_pipeline.py
+"""
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
+
+import unittest
+from pipeline import Pairer
 
 
 def flight_lookup(tag_id):
@@ -49,7 +61,7 @@ class PairerTest(unittest.TestCase):
         second = p.resolve_trigger(ts=150.0)
         self.assertEqual(second.status, "duplicate")
         self.assertEqual(second.tag_id, "TAG1")
-        self.assertEqual(second.flight_number, "QF1")  # reuses the original match, doesn't re-roll
+        self.assertEqual(second.flight_number, "QF1")  # reuses the original match
 
     def test_same_tag_after_loop_window_is_a_fresh_match(self):
         p = Pairer(pair_window=4.0, loop_window=50.0, flight_lookup=flight_lookup)
@@ -71,18 +83,17 @@ class PairerTest(unittest.TestCase):
         self.assertEqual(p.pending_scans, [])
 
     def test_scan_before_trigger_still_matches(self):
-        # The scanner is always on, independent of the sensor (handheld,
-        # trigger-pull hardware) -- a scan landing just before the trigger
-        # is exactly as valid as one landing just after.
+        # A scan landing just before the trigger is exactly as valid as one
+        # landing just after (the scanner is always on, independent of the sensor).
         p = Pairer(pair_window=4.0, flight_lookup=flight_lookup)
         p.submit_scan(ts=98.0, barcode="TAG1")  # scanned 2s before the trigger
         r = p.resolve_trigger(ts=100.0)
         self.assertEqual(r.status, "matched")
         self.assertEqual(r.tag_id, "TAG1")
 
-    def test_resolve_candidates_matched(self):
+    def test_resolve_candidates_directly(self):
         p = Pairer(flight_lookup=flight_lookup)
-        r = p.resolve_candidates(ts=100.0, candidates=[(100.5, "TAG1")])
+        r = p._resolve_candidates(ts=100.0, candidates=[(100.5, "TAG1")])
         self.assertEqual(r.status, "matched")
         self.assertEqual(r.tag_id, "TAG1")
 

@@ -1,0 +1,16 @@
+python main.py --mode simulate --barcode-mode simulate --auto-interval 3 8
+
+
+
+current: touch screen
+other ideas:
+timeout
+keyboard/keypad
+
+next sprint:
+
+1. outline stakeholder needs
+2. link each needs to morpho table. 
+3. concepts (the fake ideas)
+4. chosee based on scoring matrix & justifications
+5. prototyping (initial, v2, examples)

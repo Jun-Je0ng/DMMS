@@ -1,9 +1,22 @@
+"""
+tests/test_feeds.py — unit tests for ActivityFeed (pipeline.py).
+
+Run from repo root:
+  python -m pytest tests/test_feeds.py -v
+or:
+  python tests/test_feeds.py
+"""
+
 import json
 import os
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 
-from activity_feed import ActivityFeed
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "server"))
+
+from pipeline import ActivityFeed
 
 
 def read_json(path):

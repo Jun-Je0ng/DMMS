@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0a0a0a" />
+<title>DMMS — Keypad Confirm</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="mobile.css" />
+</head>
+<body class="dmms-mobile">
+
+  <div class="m-app">
+
+    <!-- ── Screen 1: keypad ──────────────────────────────────────────────── -->
+    <section class="m-screen active" id="screen-keypad">
+      <header class="m-topbar">
+        <div class="m-topbar-title">
+          <h1>Keypad Confirm</h1>
+          <p id="keypad-status">connecting…</p>
+        </div>
+      </header>
+
+      <div class="m-keypad-screen">
+        <div class="m-tag-display">
+          <div class="label">Enter the bag's tag number</div>
+          <div class="value placeholder" id="tag-value"><span class="hash">#</span><span id="tag-digits">&nbsp;</span></div>
+        </div>
+
+        <div class="m-keypad-grid" id="keypad-grid">
+          <button class="m-key" data-digit="1">1</button>
+          <button class="m-key" data-digit="2">2</button>
+          <button class="m-key" data-digit="3">3</button>
+          <button class="m-key" data-digit="4">4</button>
+          <button class="m-key" data-digit="5">5</button>
+          <button class="m-key" data-digit="6">6</button>
+          <button class="m-key" data-digit="7">7</button>
+          <button class="m-key" data-digit="8">8</button>
+          <button class="m-key" data-digit="9">9</button>
+          <button class="m-key wide-clear" id="key-clear">Clear</button>
+          <button class="m-key" data-digit="0">0</button>
+          <button class="m-key enter" id="key-enter">Go</button>
+        </div>
+
+        <div class="m-recent" id="recent-line">&nbsp;</div>
+      </div>
+      <div class="m-mode-switch">Easier to swipe through photos? <a href="mobile_swipe.html">Switch to Swipe Confirm</a></div>
+    </section>
+
+    <!-- ── Screen 2: bag found → confirm ───────────────────────────────────── -->
+    <section class="m-screen m-confirm-screen" id="screen-confirm">
+      <header class="m-topbar">
+        <div class="m-topbar-title">
+          <h1 id="confirm-tag">#—</h1>
+          <p>bag lookup</p>
+        </div>
+        <button class="m-link-btn" id="btn-confirm-back">&#8592; Keypad</button>
+      </header>
+      <div class="m-confirm-photo" id="confirm-photo"></div>
+      <div class="m-confirm-info">
+        <div class="flight" id="confirm-flight">—</div>
+        <div class="sub" id="confirm-sub">—</div>
+        <div id="confirm-already" style="display:none" class="already"></div>
+      </div>
+      <div class="m-confirm-question" id="confirm-question">Confirm loaded?</div>
+      <div class="m-confirm-actions" id="confirm-actions">
+        <button class="m-btn-secondary" id="btn-confirm-no">No</button>
+        <button class="m-primary-btn confirm" id="btn-confirm-yes">&#10003; Confirm Loaded</button>
+      </div>
+    </section>
+
+    <!-- ── Screen 3: tag not found ─────────────────────────────────────────── -->
+    <section class="m-screen" id="screen-notfound">
+      <header class="m-topbar">
+        <div class="m-topbar-title"><h1>Not found</h1></div>
+      </header>
+      <div class="m-lookup-error">
+        <div class="big">&#10067;</div>
+        <div><strong>No bag with tag <span id="notfound-tag">#—</span></strong></div>
+        <div class="muted">It may not have arrived on the belt yet, or the number was mistyped.</div>
+        <button class="m-primary-btn" id="btn-notfound-retry">Try Again</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="mobile-common.js"></script>
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let allEvents     = [];
+    let loadedRecords = [];
+    let typed         = "";
+    let currentBag    = null;
+    let busy          = false;
+    let recentTags    = [];   // last few tags looked up this session, for quick re-tap
+
+    const el = (id) => document.getElementById(id);
+    const screens = ["screen-keypad", "screen-confirm", "screen-notfound"];
+    function showScreen(id) {
+      screens.forEach((s) => el(s).classList.toggle("active", s === id));
+    }
+
+    const CAMERA_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h3l1.5-2h7L17 5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>';
+
+    // ── Keypad input ──────────────────────────────────────────────────────
+
+    function renderTyped() {
+      el("tag-digits").textContent = typed || " ";
+      el("tag-value").classList.toggle("placeholder", !typed);
+      el("key-enter").disabled = typed.length === 0 || busy;
+    }
+
+    el("keypad-grid").addEventListener("click", (e) => {
+      const btn = e.target.closest(".m-key");
+      if (!btn) return;
+      if (btn.dataset.digit !== undefined) {
+        if (typed.length < 5) typed += btn.dataset.digit;
+        renderTyped();
+      }
+    });
+    el("key-clear").addEventListener("click", () => { typed = ""; renderTyped(); });
+    el("key-enter").addEventListener("click", lookupTag);
+
+    document.addEventListener("keydown", (e) => {
+      if (!el("screen-keypad").classList.contains("active")) return;
+      if (/^[0-9]$/.test(e.key) && typed.length < 5) { typed += e.key; renderTyped(); }
+      else if (e.key === "Backspace") { typed = typed.slice(0, -1); renderTyped(); }
+      else if (e.key === "Enter") lookupTag();
+    });
+
+    function renderRecent() {
+      if (!recentTags.length) { el("recent-line").innerHTML = "&nbsp;"; return; }
+      el("recent-line").innerHTML = "Recent: " + recentTags
+        .map((t) => `<span class="m-chip" style="padding:3px 10px;margin:0 3px;display:inline-block" data-tag="${t}">#${t}</span>`)
+        .join("");
+      el("recent-line").querySelectorAll("[data-tag]").forEach((chip) => {
+        chip.addEventListener("click", () => { typed = chip.dataset.tag; renderTyped(); lookupTag(); });
+      });
+    }
+
+    function pushRecent(tag) {
+      recentTags = [tag, ...recentTags.filter((t) => t !== tag)].slice(0, 5);
+      renderRecent();
+    }
+
+    // ── Lookup + confirm flow ─────────────────────────────────────────────
+
+    async function lookupTag() {
+      if (!typed) return;
+      const tagNum = Number(typed);
+      busy = true;
+      renderTyped();
+      try {
+        // Refetch on every lookup so a bag that just arrived, or was just
+        // confirmed from the swipe page / kiosk, is always current.
+        allEvents = await dmmsFetchEvents();
+        loadedRecords = await dmmsFetchLoaded();
+      } catch (err) {
+        dmmsToast("Couldn't reach the server — try again", "error");
+        busy = false; renderTyped();
+        return;
+      }
+      busy = false;
+
+      const bag = allEvents.find((e) => e._tag === tagNum);
+      if (!bag) {
+        el("notfound-tag").textContent = `#${typed}`;
+        typed = "";
+        renderTyped();
+        showScreen("screen-notfound");
+        return;
+      }
+      currentBag = bag;
+      pushRecent(tagNum);
+      typed = "";
+      renderTyped();
+      openConfirm(bag);
+    }
+
+    el("btn-notfound-retry").addEventListener("click", () => showScreen("screen-keypad"));
+
+    function alreadyLoadedRecord(bag) {
+      return loadedRecords.find((r) => r.id === bag.id) || null;
+    }
+
+    function openConfirm(bag) {
+      el("confirm-tag").textContent = `#${bag._tag}`;
+      const imgUrl = dmmsImageUrl(bag.photo_path);
+      el("confirm-photo").innerHTML = imgUrl
+        ? `<img src="${imgUrl}" alt="Bag ${bag.id}" />`
+        : `<div class="m-card-placeholder">${CAMERA_SVG}</div>`;
+      el("confirm-flight").textContent = bag.flight_number || "Unassigned";
+      el("confirm-sub").textContent = [bag.id, bag.destination, dmmsFormatTime(bag.timestamp)].filter(Boolean).join(" · ");
+
+      const already = alreadyLoadedRecord(bag);
+      const alreadyEl = el("confirm-already");
+      const actions = el("confirm-actions");
+      const question = el("confirm-question");
+
+      if (already) {
+        alreadyEl.style.display = "inline-block";
+        alreadyEl.textContent = `Already confirmed loaded ${dmmsFormatTime(already.loaded_at)} (${already.source || "mobile"})`;
+        question.textContent = "Marked as a mistake?";
+        actions.innerHTML = `
+          <button class="m-btn-secondary" id="btn-confirm-back2">&#8592; Back to keypad</button>
+          <button class="m-primary-btn danger" id="btn-confirm-unmark">Undo — Not Loaded</button>
+        `;
+        el("btn-confirm-back2").addEventListener("click", () => showScreen("screen-keypad"));
+        el("btn-confirm-unmark").addEventListener("click", () => doUnmark(bag));
+      } else {
+        alreadyEl.style.display = "none";
+        question.textContent = "Confirm loaded?";
+        actions.innerHTML = `
+          <button class="m-btn-secondary" id="btn-confirm-no">No</button>
+          <button class="m-primary-btn confirm" id="btn-confirm-yes">&#10003; Confirm Loaded</button>
+        `;
+        el("btn-confirm-no").addEventListener("click", () => showScreen("screen-keypad"));
+        el("btn-confirm-yes").addEventListener("click", () => doMark(bag));
+      }
+
+      showScreen("screen-confirm");
+    }
+
+    async function doMark(bag) {
+      const btn = el("btn-confirm-yes");
+      if (btn) btn.disabled = true;
+      try {
+        await dmmsMarkLoaded(bag, "keypad");
+        loadedRecords.push({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag, source: "keypad", loaded_at: new Date().toISOString() });
+        dmmsToast(`Bag #${bag._tag} marked loaded`, "good");
+        showScreen("screen-keypad");
+      } catch (err) {
+        dmmsToast("Couldn't reach the server — try again", "error");
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function doUnmark(bag) {
+      const btn = el("btn-confirm-unmark");
+      if (btn) btn.disabled = true;
+      try {
+        await dmmsUnmarkLoaded(bag.id);
+        loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
+        dmmsToast(`Bag #${bag._tag} unmarked`, "good");
+        showScreen("screen-keypad");
+      } catch (err) {
+        dmmsToast("Couldn't reach the server — try again", "error");
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    el("btn-confirm-back").addEventListener("click", () => showScreen("screen-keypad"));
+
+    // ── Boot / background status ──────────────────────────────────────────
+
+    async function refreshStatus() {
+      try {
+        allEvents = await dmmsFetchEvents();
+        loadedRecords = await dmmsFetchLoaded();
+        el("keypad-status").textContent = `${allEvents.length} bag${allEvents.length === 1 ? "" : "s"} on the board · live`;
+      } catch {
+        el("keypad-status").textContent = "connection lost — retrying…";
+      }
+    }
+
+    renderTyped();
+    refreshStatus();
+    setInterval(() => {
+      if (el("screen-keypad").classList.contains("active")) refreshStatus();
+    }, DMMS_POLL_MS * 2);
+  </script>
+</body>
+</html>

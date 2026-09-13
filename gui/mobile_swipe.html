@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0a0a0a" />
+<title>DMMS — Swipe Confirm</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="mobile.css" />
+</head>
+<body class="dmms-mobile">
+
+  <div class="m-app">
+
+    <!-- ── Screen 1: pick a flight ───────────────────────────────────────── -->
+    <section class="m-screen active" id="screen-entry">
+      <div class="m-entry">
+        <img class="m-entry-logo" src="resources/Generated image_ SAAS Airport Automation Logo (1).png" alt="" />
+        <h2>Swipe Confirm</h2>
+        <p class="muted">Enter the flight you're loading. You'll see every bag routed to it, one at a time.</p>
+        <input
+          id="flight-input"
+          class="m-flight-input"
+          type="text"
+          inputmode="text"
+          autocapitalize="characters"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="QF298"
+          maxlength="8"
+        />
+        <div class="m-flight-suggestions" id="flight-suggestions"></div>
+        <button class="m-primary-btn" id="btn-start" disabled>Start</button>
+      </div>
+      <div class="m-mode-switch">Easier as a keypad instead? <a href="mobile_keypad.html">Switch to Keypad Confirm</a></div>
+    </section>
+
+    <!-- ── Screen 2: swipe deck ──────────────────────────────────────────── -->
+    <section class="m-screen" id="screen-deck">
+      <header class="m-topbar">
+        <div class="m-topbar-title">
+          <h1 id="deck-flight-label">—</h1>
+          <p id="deck-flight-sub">connecting…</p>
+        </div>
+        <button class="m-link-btn" id="btn-change-flight">Change flight</button>
+      </header>
+
+      <div class="m-deck-status">
+        <span><span class="m-count-pending" id="count-pending">0</span> pending</span>
+        <span><span class="m-count-loaded" id="count-loaded">0</span> loaded</span>
+      </div>
+
+      <div class="m-card-wrap" id="card-wrap">
+        <button class="m-nav-arrow prev" id="btn-prev" aria-label="Previous bag">&#8592;</button>
+        <div class="m-card" id="card">
+          <!-- filled by JS -->
+        </div>
+        <button class="m-nav-arrow next" id="btn-next" aria-label="Next bag">&#8594;</button>
+      </div>
+
+      <div class="m-actions">
+        <div>
+          <button class="m-action-btn reject" id="btn-skip" aria-label="Skip for now">&#10005;</button>
+          <div class="m-action-label">Skip</div>
+        </div>
+        <div>
+          <button class="m-action-btn confirm" id="btn-confirm" aria-label="Confirm loaded">&#10003;</button>
+          <div class="m-action-label">Loaded</div>
+        </div>
+      </div>
+
+      <div class="m-tray-handle" id="tray-handle">
+        <span class="bar"></span>
+        <span id="tray-handle-text">Swipe up to review loaded bags</span>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="m-tray-backdrop" id="tray-backdrop"></div>
+  <div class="m-tray" id="tray">
+    <div class="m-tray-drag" id="tray-drag"><span class="bar"></span></div>
+    <div class="m-tray-title">Loaded — tap Undo if you tapped by mistake</div>
+    <div class="m-tray-list" id="tray-list"></div>
+  </div>
+
+  <script src="mobile-common.js"></script>
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let flightNumber   = null;
+    let allEvents      = [];
+    let loadedRecords  = [];      // server-side /api/loaded, all flights
+    let pendingDeck     = [];     // bags for this flight, not yet loaded, oldest first
+    let curIndex        = 0;
+    let pollTimer       = null;
+    let busy             = false; // guards against double-tap while a mark/unmark is in flight
+
+    const el = (id) => document.getElementById(id);
+
+    // ── Screen 1: flight entry ────────────────────────────────────────────
+
+    const flightInput  = el("flight-input");
+    const btnStart      = el("btn-start");
+    const suggestionsEl = el("flight-suggestions");
+
+    flightInput.addEventListener("input", () => {
+      flightInput.value = flightInput.value.toUpperCase();
+      btnStart.disabled = flightInput.value.trim().length < 2;
+    });
+    flightInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !btnStart.disabled) startFlight(flightInput.value);
+    });
+    btnStart.addEventListener("click", () => startFlight(flightInput.value));
+
+    // Offer the flights currently seen in the live feed as quick-tap chips,
+    // so staff don't have to type on a second or third bag.
+    function renderFlightSuggestions() {
+      const seen = new Set();
+      allEvents.forEach((e) => { if (e.status === "matched" && e.flight_number) seen.add(e.flight_number.toUpperCase()); });
+      suggestionsEl.innerHTML = "";
+      [...seen].slice(0, 6).forEach((fn) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "m-chip";
+        chip.textContent = fn;
+        chip.addEventListener("click", () => startFlight(fn));
+        suggestionsEl.appendChild(chip);
+      });
+    }
+
+    function startFlight(fn) {
+      fn = String(fn || "").trim().toUpperCase();
+      if (!fn) return;
+      flightNumber = fn;
+      try { localStorage.setItem("dmms:mobile:lastFlight", fn); } catch {}
+      el("screen-entry").classList.remove("active");
+      el("screen-deck").classList.add("active");
+      el("deck-flight-label").textContent = fn;
+      el("deck-flight-sub").textContent = "loading…";
+      curIndex = 0;
+      refresh(true);
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(() => refresh(false), DMMS_POLL_MS);
+    }
+
+    el("btn-change-flight").addEventListener("click", () => {
+      if (pollTimer) clearInterval(pollTimer);
+      closeTray();
+      el("screen-deck").classList.remove("active");
+      el("screen-entry").classList.add("active");
+      flightInput.value = "";
+      btnStart.disabled = true;
+      flightInput.focus();
+    });
+
+    // ── Data refresh ──────────────────────────────────────────────────────
+
+    async function refresh(isInitial) {
+      try {
+        const [events, loaded] = await Promise.all([dmmsFetchEvents(), dmmsFetchLoaded()]);
+        allEvents = events;
+        loadedRecords = loaded;
+        if (el("screen-entry").classList.contains("active")) renderFlightSuggestions();
+        if (flightNumber) rebuildDeck(isInitial);
+      } catch (err) {
+        if (flightNumber) el("deck-flight-sub").textContent = "connection lost — retrying…";
+        console.error(err);
+      }
+    }
+
+    function loadedIdSet() { return new Set(loadedRecords.map((r) => r.id)); }
+
+    function rebuildDeck(resetIndex) {
+      const loadedIds = loadedIdSet();
+      const bags = dmmsBagsForFlight(allEvents, flightNumber);
+      const keepId = !resetIndex && pendingDeck[curIndex] ? pendingDeck[curIndex].id : null;
+
+      pendingDeck = bags.filter((b) => !loadedIds.has(b.id));
+
+      if (keepId) {
+        const idx = pendingDeck.findIndex((b) => b.id === keepId);
+        curIndex = idx >= 0 ? idx : Math.min(curIndex, Math.max(pendingDeck.length - 1, 0));
+      } else {
+        curIndex = 0;
+      }
+
+      el("deck-flight-sub").textContent = bags.length
+        ? "live · updates automatically"
+        : "no bags routed to this flight yet — waiting…";
+
+      renderCard();
+      renderCounts();
+      renderTray();
+    }
+
+    function renderCounts() {
+      el("count-pending").textContent = String(pendingDeck.length);
+      const loadedForFlight = loadedRecords.filter(
+        (r) => String(r.flight_number || "").toUpperCase() === flightNumber
+      );
+      el("count-loaded").textContent = String(loadedForFlight.length);
+      el("tray-handle-text").textContent = loadedForFlight.length
+        ? `Swipe up · ${loadedForFlight.length} loaded`
+        : "Swipe up to review loaded bags";
+    }
+
+    // ── Card rendering ────────────────────────────────────────────────────
+
+    const cardEl = el("card");
+
+    function currentBag() { return pendingDeck[curIndex] || null; }
+
+    function renderCard() {
+      const bag = currentBag();
+      el("btn-prev").disabled = curIndex <= 0;
+      el("btn-next").disabled = curIndex >= pendingDeck.length - 1;
+      el("btn-confirm").disabled = !bag || busy;
+      el("btn-skip").disabled = !bag || busy;
+
+      if (!bag) {
+        cardEl.innerHTML = `
+          <div class="m-deck-empty">
+            <div class="big">${pendingDeck.length === 0 && loadedRecords.some(r => String(r.flight_number||"").toUpperCase()===flightNumber) ? "🎉" : "🕓"}</div>
+            <div><strong>All caught up</strong></div>
+            <div class="muted">No pending bags for ${flightNumber} right now.</div>
+          </div>`;
+        return;
+      }
+
+      const imgUrl = dmmsImageUrl(bag.photo_path);
+      const photoHtml = imgUrl
+        ? `<img src="${imgUrl}" alt="Bag ${bag.id}" />`
+        : `<div class="m-card-placeholder">${CAMERA_SVG}</div>`;
+
+      cardEl.innerHTML = `
+        <span class="m-card-tag">#${bag._tag}</span>
+        ${photoHtml}
+        <div class="m-card-caption">
+          <div class="m-card-flight">${bag.flight_number || "?"}${bag.destination ? " · " + bag.destination : ""}</div>
+          <div class="m-card-sub">${bag.id} &middot; ${dmmsFormatTime(bag.timestamp)}</div>
+          <div class="m-card-sub">${curIndex + 1} of ${pendingDeck.length}</div>
+        </div>`;
+    }
+
+    const CAMERA_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 5h3l1.5-2h7L17 5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>';
+
+    // ── Navigation (swipe / arrows / keyboard — navigation only, no confirm) ─
+
+    function nav(delta) {
+      const next = curIndex + delta;
+      if (next < 0 || next >= pendingDeck.length) return;
+      curIndex = next;
+      renderCard();
+    }
+
+    el("btn-prev").addEventListener("click", () => nav(-1));
+    el("btn-next").addEventListener("click", () => nav(1));
+    document.addEventListener("keydown", (e) => {
+      if (!el("screen-deck").classList.contains("active")) return;
+      if (e.key === "ArrowLeft") nav(-1);
+      if (e.key === "ArrowRight") nav(1);
+      if (e.key === "Enter") confirmLoaded();
+      if (e.key === "Backspace") { e.preventDefault(); skipBag(); }
+    });
+
+    // Touch/pointer swipe — purely for moving focus between cards, matching
+    // the tinder-style gesture staff asked for, but confirming loaded is
+    // always the explicit ✓ button so a stray swipe can never mark a bag.
+    (function setupSwipe() {
+      const wrap = el("card-wrap");
+      let startX = 0, startY = 0, dragging = false, moved = 0;
+
+      function pointerDown(x, y) { startX = x; startY = y; dragging = true; moved = 0; cardEl.classList.add("dragging"); }
+      function pointerMove(x, y) {
+        if (!dragging) return;
+        moved = x - startX;
+        if (Math.abs(moved) > Math.abs(y - startY)) {
+          cardEl.style.transform = `translateX(${moved}px) rotate(${moved / 24}deg)`;
+          cardEl.style.opacity = String(1 - Math.min(Math.abs(moved) / 300, 0.5));
+        }
+      }
+      function pointerUp() {
+        if (!dragging) return;
+        dragging = false;
+        cardEl.classList.remove("dragging");
+        cardEl.style.transform = "";
+        cardEl.style.opacity = "";
+        const THRESHOLD = 56;
+        if (moved > THRESHOLD) nav(-1);
+        else if (moved < -THRESHOLD) nav(1);
+      }
+
+      wrap.addEventListener("touchstart", (e) => { const t = e.touches[0]; pointerDown(t.clientX, t.clientY); }, { passive: true });
+      wrap.addEventListener("touchmove",  (e) => { const t = e.touches[0]; pointerMove(t.clientX, t.clientY); }, { passive: true });
+      wrap.addEventListener("touchend",   pointerUp);
+
+      wrap.addEventListener("mousedown", (e) => pointerDown(e.clientX, e.clientY));
+      window.addEventListener("mousemove", (e) => pointerMove(e.clientX, e.clientY));
+      window.addEventListener("mouseup", pointerUp);
+    }());
+
+    // ── Confirm / skip ────────────────────────────────────────────────────
+
+    async function confirmLoaded() {
+      const bag = currentBag();
+      if (!bag || busy) return;
+      busy = true;
+      renderCard();
+      try {
+        await dmmsMarkLoaded(bag, "swipe");
+        loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
+        loadedRecords.push({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag, source: "swipe", loaded_at: new Date().toISOString() });
+        pendingDeck.splice(curIndex, 1);
+        if (curIndex >= pendingDeck.length) curIndex = Math.max(pendingDeck.length - 1, 0);
+        dmmsToast(`Bag #${bag._tag} marked loaded`, "good");
+        renderCard(); renderCounts(); renderTray();
+      } catch (err) {
+        dmmsToast("Couldn't reach the server — try again", "error");
+        console.error(err);
+      } finally {
+        busy = false;
+        renderCard();
+      }
+    }
+
+    function skipBag() {
+      // "Cross" = not confirming this one right now, just move on.
+      // It never marks anything loaded and never removes the bag from the deck.
+      nav(1);
+    }
+
+    el("btn-confirm").addEventListener("click", confirmLoaded);
+    el("btn-skip").addEventListener("click", skipBag);
+
+    // ── Loaded tray (undo) ────────────────────────────────────────────────
+
+    const trayEl     = el("tray");
+    const trayListEl = el("tray-list");
+    const backdropEl = el("tray-backdrop");
+    let trayOpen = false;
+
+    function openTray()  { trayOpen = true;  trayEl.classList.add("open");  backdropEl.classList.add("open"); }
+    function closeTray() { trayOpen = false; trayEl.classList.remove("open"); backdropEl.classList.remove("open"); }
+
+    el("tray-handle").addEventListener("click", openTray);
+    el("tray-drag").addEventListener("click", closeTray);
+    backdropEl.addEventListener("click", closeTray);
+
+    // Swipe the handle up to open, swipe the tray down to close.
+    (function setupTraySwipe() {
+      let startY = null;
+      function attach(node, onUp, onDown) {
+        node.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; }, { passive: true });
+        node.addEventListener("touchend", (e) => {
+          if (startY === null) return;
+          const dy = e.changedTouches[0].clientY - startY;
+          if (dy < -24) onUp && onUp();
+          if (dy > 24) onDown && onDown();
+          startY = null;
+        });
+      }
+      attach(el("tray-handle"), openTray, null);
+      attach(el("tray-drag"), null, closeTray);
+    }());
+
+    function renderTray() {
+      const rows = loadedRecords
+        .filter((r) => String(r.flight_number || "").toUpperCase() === flightNumber)
+        .sort((a, b) => new Date(b.loaded_at) - new Date(a.loaded_at));
+
+      if (!rows.length) {
+        trayListEl.innerHTML = `<div class="m-tray-empty">Nothing loaded yet for ${flightNumber}.</div>`;
+        return;
+      }
+
+      trayListEl.innerHTML = "";
+      rows.forEach((rec) => {
+        const bag = allEvents.find((e) => e.id === rec.id);
+        const thumbUrl = bag ? dmmsImageUrl(bag.photo_path) : null;
+        const row = document.createElement("div");
+        row.className = "m-tray-row";
+        row.innerHTML = `
+          ${thumbUrl ? `<img class="thumb" src="${thumbUrl}" alt="" />` : `<div class="thumb"></div>`}
+          <div class="info">
+            <div><span class="tag">#${rec.tag || "?"}</span> &nbsp;<span class="flight">${rec.flight_number || ""}</span></div>
+            <div class="time">Loaded ${dmmsFormatTime(rec.loaded_at)} via ${rec.source || "mobile"}</div>
+          </div>
+          <button class="undo-btn" type="button">Undo</button>
+        `;
+        row.querySelector(".undo-btn").addEventListener("click", () => undoLoad(rec.id));
+        trayListEl.appendChild(row);
+      });
+    }
+
+    async function undoLoad(id) {
+      try {
+        await dmmsUnmarkLoaded(id);
+        loadedRecords = loadedRecords.filter((r) => r.id !== id);
+        rebuildDeck(false);
+        dmmsToast("Undone — bag moved back to pending", "good");
+      } catch (err) {
+        dmmsToast("Couldn't undo — try again", "error");
+        console.error(err);
+      }
+    }
+
+    // ── Boot ───────────────────────────────────────────────────────────────
+
+    (async function boot() {
+      try {
+        allEvents = await dmmsFetchEvents();
+        loadedRecords = await dmmsFetchLoaded();
+        renderFlightSuggestions();
+      } catch (err) { console.error(err); }
+
+      let last = null;
+      try { last = localStorage.getItem("dmms:mobile:lastFlight"); } catch {}
+      if (last) { flightInput.value = last; btnStart.disabled = false; }
+
+      setInterval(async () => {
+        if (!el("screen-entry").classList.contains("active")) return;
+        try { allEvents = await dmmsFetchEvents(); renderFlightSuggestions(); } catch {}
+      }, DMMS_POLL_MS * 2);
+    }());
+  </script>
+</body>
+</html>

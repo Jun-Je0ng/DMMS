@@ -496,12 +496,49 @@ function loadCans() {
   ];
 }
 
-function loadFlights() {
+async function loadFlightsFromFile() {
+  try {
+    const r = await fetch("/api/flights");
+    if (!r.ok) throw new Error("no file");
+    const data = await r.json();
+    if (Array.isArray(data) && data.length) {
+      // Sync to localStorage so app.js board page picks it up too
+      try { localStorage.setItem(FLIGHTS_STORAGE_KEY, JSON.stringify(data)); } catch {}
+      return data;
+    }
+  } catch {}
+  // Fall back to localStorage (e.g. server not running)
   try {
     const p = JSON.parse(localStorage.getItem(FLIGHTS_STORAGE_KEY) || "null");
     if (Array.isArray(p)) return p;
   } catch {}
   return [];
+}
+
+function loadFlights() {
+  // Synchronous fallback used only at boot before async load completes
+  try {
+    const p = JSON.parse(localStorage.getItem(FLIGHTS_STORAGE_KEY) || "null");
+    if (Array.isArray(p)) return p;
+  } catch {}
+  return [];
+}
+
+async function loadCansFromFile() {
+  try {
+    const r = await fetch("/api/cans");
+    if (!r.ok) throw new Error("no file");
+    const data = await r.json();
+    if (Array.isArray(data) && data.length) {
+      try { localStorage.setItem(CAN_STORAGE_KEY, JSON.stringify(data)); } catch {}
+      return data;
+    }
+  } catch {}
+  try {
+    const p = JSON.parse(localStorage.getItem(CAN_STORAGE_KEY) || "null");
+    if (Array.isArray(p) && p.length) return p;
+  } catch {}
+  return null; // null = use defaults
 }
 
 function flashSaved() {
@@ -514,11 +551,22 @@ function flashSaved() {
 
 function saveCans() {
   try { localStorage.setItem(CAN_STORAGE_KEY, JSON.stringify(cans)); } catch {}
+  fetch("/api/cans", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cans),
+  }).catch(() => {});
   flashSaved();
 }
 
 function saveFlights() {
   try { localStorage.setItem(FLIGHTS_STORAGE_KEY, JSON.stringify(flights)); } catch {}
+  // Persist to flights.json so data survives across browsers/reboots
+  fetch("/api/flights", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(flights),
+  }).catch(() => {}); // silent — localStorage is the fallback
   flashSaved();
 }
 
@@ -723,13 +771,29 @@ function setupTabs() {
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 cans    = loadCans();
-flights = loadFlights();
+flights = loadFlights();   // sync seed from localStorage while file loads
 
 setupTabs();
-renderCanList();
-renderFlightList();
 setupAddCanForm();
 setupAddFlightForm();
+renderCanList();
+renderFlightList();
+
+// Then load from file (source of truth) and re-render if data differs
+loadFlightsFromFile().then(data => {
+  if (JSON.stringify(data) !== JSON.stringify(flights)) {
+    flights = data;
+    renderFlightList();
+    repopulateAllSelects();
+  }
+});
+loadCansFromFile().then(data => {
+  if (data && JSON.stringify(data) !== JSON.stringify(cans)) {
+    cans = data;
+    renderCanList();
+    repopulateAllSelects();
+  }
+});
 </script>
 </body>
 </html>
