@@ -1,5 +1,12 @@
 # config.py — hardware settings for THIS installation.
 # Edit here once; both run.py and sim_runner.py read from this file.
+#
+# These are just the DEFAULTS. The Settings page (open gui/settings.html,
+# or the "Settings" button on the main board) writes overrides to
+# gui/settings.json, which wins over whatever's below without editing this
+# file — see server/settings.py. Editing here still works fine if you'd
+# rather not use the GUI; it's only ever the fallback when settings.json
+# has nothing to say about a given value.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Serial port the Arduino is connected to.
@@ -14,7 +21,9 @@ SERIAL_BAUD   = 9600
 TRIGGER_TOKEN = "Baggage passed"
 
 # Camera device index (0 = first/only webcam, 1 = second, …).
-# Run  python server/select_camera.py  if you're unsure which index to use.
+# Unsure which index is which camera? Open the Settings page and use
+# "Detect Cameras" — it probes each index and shows a live preview so you
+# can tell them apart, then saves your pick without editing this file.
 CAMERA_INDEX  = 0
 
 # Seconds to wait after barcode resolution before taking the photo.

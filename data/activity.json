@@ -1,37 +1,22 @@
 [
   {
-    "kind": "trigger",
-    "ts": 1789290097.389931,
-    "detail": "sim-sensor"
-  },
-  {
     "kind": "scan",
-    "ts": 1789290111.685989,
+    "ts": 1789294110.1392388,
     "detail": "LM219-CGK"
   },
   {
     "kind": "trigger",
-    "ts": 1789290127.4290657,
+    "ts": 1789294112.9836085,
     "detail": "sim-sensor"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789290128.023527,
-    "detail": "SG334-SNG"
   },
   {
     "kind": "trigger",
-    "ts": 1789290142.756198,
+    "ts": 1789294114.8490486,
     "detail": "sim-sensor"
   },
   {
     "kind": "scan",
-    "ts": 1789290142.917293,
-    "detail": "NZ499-NZD"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789290144.9761198,
-    "detail": "QA298-SYD"
+    "ts": 1789294117.770594,
+    "detail": "SG334-SNG"
   }
 ]

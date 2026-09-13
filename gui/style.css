@@ -633,6 +633,65 @@ body {
 }
 .qr-card-open:hover { text-decoration: underline; }
 
+/* ---- Bag photo zoom modal (click a tile) -------------------- */
+/* Same pattern as .qr-modal above — an in-page overlay, not a new browser
+   window: window.open() is blocked outright by kiosk-mode Chrome and is
+   unreliable elsewhere once it's not perfectly synchronous with the click. */
+
+.zoom-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 210;
+  padding: 20px;
+}
+.zoom-modal[hidden] { display: none; }
+
+.zoom-modal-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  max-width: min(90vw, 900px);
+  max-height: 90vh;
+  position: relative;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.zoom-modal-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.zoom-modal-img {
+  max-width: 100%;
+  max-height: calc(90vh - 70px);
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: #0b1524;
+}
+
+.zoom-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.zoom-modal-close:hover { color: var(--text-primary); }
+
 /* Bag tag — short number for the mobile keypad confirmation page */
 .tile-tag {
   position: absolute;

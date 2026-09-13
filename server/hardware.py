@@ -137,13 +137,44 @@ class CameraCapture:
         self._cap = cv2.VideoCapture(self.camera_index)
         if not self._cap.isOpened():
             raise RuntimeError(f"Could not open camera index {self.camera_index}")
-        # Request max resolution via MJPG (many webcams cap raw/YUYV lower).
-        self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH,  99999)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 99999)
+
+        # Ask for MJPG + a high-but-realistic resolution (many webcams cap
+        # raw/YUYV well below their real max). This used to ask for an
+        # intentionally absurd 99999x99999 as a "just give me your max"
+        # trick — several drivers (DirectShow on Windows especially) don't
+        # clamp that gracefully, and can leave the device readable by
+        # isOpened() but silently returning ok=False on every .read() after
+        # that, which is exactly "camera selected correctly, but no photo is
+        # ever taken." Ask for something real instead, and don't treat a
+        # partial failure here as fatal — worst case you keep the device's
+        # default resolution.
+        try:
+            self._cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1920)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        except cv2.error as exc:
+            print(f"Camera format/resolution request failed ({exc}) — continuing with the device's default.")
         w = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         print(f"Camera opened at {w}x{h}")
+
+        # Warm-up: grab and discard a handful of frames right away. Many
+        # webcams need a few frames before .read() reliably succeeds
+        # (auto-exposure / driver start-up) — better to find that out now,
+        # with a clear error, than the first time a real bag goes past.
+        ok = False
+        for _ in range(10):
+            ok, _frame = self._cap.read()
+            if ok:
+                break
+            time.sleep(0.1)
+        if not ok:
+            self.close()
+            raise RuntimeError(
+                f"Camera index {self.camera_index} opened but never returned a frame. "
+                "It may be in use by another program, or this may be the wrong index — "
+                "check with the Settings page's Detect Cameras / Preview."
+            )
 
     def close(self):
         if self._cap is not None:
@@ -162,11 +193,19 @@ class CameraCapture:
         if self._cap is None:
             raise RuntimeError("Camera not open — call open() first")
         self._cap.read()          # discard buffered frame
-        ok, frame = self._cap.read()
-        if not ok:
+        ok, frame = False, None
+        for attempt in range(3):
+            ok, frame = self._cap.read()
+            if ok and frame is not None:
+                break
+            time.sleep(0.05)
+        if not ok or frame is None:
+            print(f"Camera capture failed for '{label}' — .read() returned no frame after 3 attempts.")
             return None
         stamp  = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         suffix = f"_{label}" if label else ""
         path   = self.save_dir / f"bag_{stamp}{suffix}.jpg"
-        cv2.imwrite(str(path), frame)
+        if not cv2.imwrite(str(path), frame):
+            print(f"Camera capture: cv2.imwrite failed writing {path}")
+            return None
         return path

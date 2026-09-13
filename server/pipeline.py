@@ -43,31 +43,88 @@ class Pairer:
         the same bag. Covers belt travel time between scanner and camera.
     loop_window: how long a tag is "still on the loop" for duplicate detection.
         Roughly one MUL loop (~3 minutes per the site visit notes).
+    on_late_match: optional callback(bag_id, Resolution), fired when a scan
+        arrives AFTER resolve_trigger() already had to call a bag 'manual'
+        for lack of any scan yet. This is the normal real-world ordering —
+        sensor fires first, barcode gets read a moment later as the bag
+        keeps moving — and resolve_trigger() can't wait for a scan that
+        hasn't happened yet, so it makes its best call immediately (needed
+        so the photo timing / board update isn't delayed) and may have to
+        say 'manual' at first. Passing `bag_id` to resolve_trigger() opts
+        that trigger into a second chance: if a scan lands within
+        pair_window seconds afterwards, on_late_match reports the upgrade
+        (normally 'matched') so the caller can update the board in place
+        instead of leaving it stuck in Needs Attention.
     """
 
-    def __init__(self, pair_window: float = 4.0, loop_window: float = 200.0, flight_lookup=None):
+    def __init__(self, pair_window: float = 4.0, loop_window: float = 200.0,
+                 flight_lookup=None, on_late_match=None):
         self.pair_window   = pair_window
         self.loop_window   = loop_window
         self.flight_lookup = flight_lookup   # callable(tag_id) -> {"flight_number", "destination"}
+        self.on_late_match = on_late_match   # callable(bag_id, Resolution)
         self.pending_scans: List[Tuple[float, str]] = []
         self.active_tags:   Dict[str, _ActiveTag]   = {}
+        self._open_triggers: Dict[str, float] = {}   # bag_id -> trigger ts, still open for a late scan
         self._lock = threading.Lock()
 
     def submit_scan(self, ts: float, barcode: str) -> None:
-        """Record a scan as it arrives. Unpaired until a nearby trigger claims it."""
-        with self._lock:
-            self.pending_scans.append((ts, barcode))
+        """Record a scan as it arrives.
 
-    def resolve_trigger(self, ts: float) -> Resolution:
+        First checks whether it lands within pair_window of a trigger that
+        already resolved as 'manual' and is still open for a late match (see
+        on_late_match above) — if so, it claims that trigger instead of
+        joining the ordinary pending-scan pool that resolve_trigger() draws
+        from for brand-new triggers.
+        """
+        late_target = None
+        with self._lock:
+            open_candidates = [
+                (bag_id, trig_ts) for bag_id, trig_ts in self._open_triggers.items()
+                if abs(ts - trig_ts) <= self.pair_window
+            ]
+            if open_candidates:
+                # Nearest in time wins if more than one trigger is still open.
+                bag_id, trig_ts = min(open_candidates, key=lambda bt: abs(ts - bt[1]))
+                del self._open_triggers[bag_id]
+                late_target = (bag_id, trig_ts)
+            else:
+                self.pending_scans.append((ts, barcode))
+
+        if late_target is not None:
+            bag_id, trig_ts = late_target
+            resolution = self._resolve_candidates(trig_ts, [(ts, barcode)])
+            if self.on_late_match:
+                self.on_late_match(bag_id, resolution)
+
+    def resolve_trigger(self, ts: float, bag_id: Optional[str] = None) -> Resolution:
         """Call once a photo has been captured for the bag detected at `ts`.
         A matching scan can land slightly before OR after the trigger, so
         this matches whatever's within pair_window seconds in either direction.
+
+        Pass `bag_id` (the id this trigger will be logged/displayed under) to
+        opt into a late-match second chance — see on_late_match above. Safe
+        to omit; without it a trigger that resolves 'manual' here just stays
+        'manual', exactly as before.
         """
         with self._lock:
             candidates = [p for p in self.pending_scans if abs(p[0] - ts) <= self.pair_window]
             for c in candidates:
                 self.pending_scans.remove(c)
-        return self._resolve_candidates(ts, candidates)
+        resolution = self._resolve_candidates(ts, candidates)
+
+        if resolution.status == "manual" and bag_id is not None:
+            with self._lock:
+                self._open_triggers[bag_id] = ts
+            timer = threading.Timer(self.pair_window, self._expire_open_trigger, args=(bag_id,))
+            timer.daemon = True
+            timer.start()
+
+        return resolution
+
+    def _expire_open_trigger(self, bag_id: str) -> None:
+        with self._lock:
+            self._open_triggers.pop(bag_id, None)
 
     def _resolve_candidates(self, ts: float, candidates: List[Tuple[float, str]]) -> Resolution:
         with self._lock:
@@ -171,6 +228,23 @@ class LiveFeed:
             "photo_path":    photo_path    or None,
         })
         self._write()
+
+    def update(self, id: str, **fields) -> bool:
+        """Update an already-added event in place, e.g. a late-arriving scan
+        (see Pairer.on_late_match) upgrading a 'manual' bag to 'matched'
+        after its photo was already on the board. Only overwrites keys given
+        a non-None value, so callers can pass through a Resolution's fields
+        (some of which may be None) without blanking out what's already
+        there. Returns True if a matching event was found and updated.
+        """
+        for ev in self.events:
+            if ev.get("id") == id:
+                for k, v in fields.items():
+                    if v is not None:
+                        ev[k] = v
+                self._write()
+                return True
+        return False
 
     def _write(self):
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")

@@ -23,7 +23,11 @@ What each combination produces:
   - 'b' alone, no 't' lands within the pair window  → after the sweep
     interval, an 'unmatched_scan' bag — the scanner read a tag with
     nothing on the belt to attach it to.
-  - 't' then 'b', or 'b' then 't', within the pair window  → 'matched'.
+  - 't' then 'b' within the pair window → 't' resolves 'manual' the
+    instant it's pressed (it can't see a scan that hasn't happened yet),
+    then flips to 'matched' in place the moment 'b' lands — watch the
+    board update a beat later. 'b' then 't' within the window resolves
+    'matched' immediately instead, since the scan is already waiting.
   - 'b' pressed twice before a 't' claims either of them  → 'ambiguous'
     (two candidate scans for one trigger).
   - The same simulated tag scanned again within --loop-window
@@ -51,7 +55,8 @@ _ROOT   = Path(__file__).resolve().parent
 _SERVER = _ROOT / "server"
 sys.path.insert(0, str(_SERVER))
 
-import config  # noqa: E402
+import config    # noqa: E402
+import settings  # noqa: E402
 from pipeline import ActivityFeed, EventLog, LiveFeed, Pairer
 from sim      import SimulatedBarcodeSource
 
@@ -119,13 +124,35 @@ def _read_key() -> str:
 
 def main():
     flights     = _load_flights()
+    eff         = settings.load(config)   # config.py defaults + gui/settings.json overrides
     sim_barcode = SimulatedBarcodeSource(flights)
     camera      = _NoCamera()
 
+    def on_late_match(bag_id: str, resolution):
+        # 't' resolved 'manual' immediately (it can't see a scan that
+        # hasn't happened yet); 'b' landed within the pair window a moment
+        # later and claims it — flip the board entry in place instead of
+        # leaving it stuck in Needs Attention. See Pairer.on_late_match.
+        print(f"  [late]    {bag_id}: upgraded to {resolution.status} "
+              f"— paired with {resolution.tag_id} ({resolution.flight_number or '?'})")
+        live.update(
+            bag_id, status=resolution.status,
+            flight_number=resolution.flight_number,
+            destination=resolution.destination,
+        )
+        log.record(
+            id=bag_id, status=resolution.status,
+            tag_id=resolution.tag_id or "",
+            flight_number=resolution.flight_number or "",
+            destination=resolution.destination or "",
+            trigger_source="late-match",
+        )
+
     pairer = Pairer(
-        pair_window=config.PAIR_WINDOW,
-        loop_window=config.LOOP_WINDOW,
+        pair_window=eff.PAIR_WINDOW,
+        loop_window=eff.LOOP_WINDOW,
         flight_lookup=sim_barcode.lookup,
+        on_late_match=on_late_match,
     )
 
     log_path = Path("data/events_with_flights.csv")
@@ -154,15 +181,18 @@ def main():
         trigger_ts = time.time()
         activity.add("trigger", trigger_ts, "sim-sensor")
 
-        resolution = pairer.resolve_trigger(trigger_ts)
-        path       = camera.capture(label="sim")
         bag_id     = next_bag_id("bag")
+        # bag_id opts this trigger into a late-match second chance — see
+        # on_late_match above and Pairer.resolve_trigger's docstring.
+        resolution = pairer.resolve_trigger(trigger_ts, bag_id=bag_id)
+        path       = camera.capture(label="sim")
 
         if resolution.tag_id:
             print(f"  [sensor]  {bag_id}: {resolution.status} "
                   f"— paired with {resolution.tag_id} ({resolution.flight_number or '?'})")
         else:
-            print(f"  [sensor]  {bag_id}: {resolution.status} — no scan paired with it")
+            print(f"  [sensor]  {bag_id}: {resolution.status} for now — no scan paired with it yet "
+                  f"(press 'b' within {eff.PAIR_WINDOW:g}s to still claim it)")
 
         log.record(
             id=bag_id, status=resolution.status,
@@ -185,7 +215,7 @@ def main():
         tag     = sim_barcode.next_tag()
         pairer.submit_scan(ts=scan_ts, barcode=tag)
         activity.add("scan", scan_ts, tag)
-        print(f"  [scanner] read {tag} — waiting up to {config.PAIR_WINDOW:g}s "
+        print(f"  [scanner] read {tag} — waiting up to {eff.PAIR_WINDOW:g}s "
               f"for a sensor trigger to pair with")
 
     # ── Background sweep: scans that never got claimed by a trigger ───────
@@ -210,7 +240,7 @@ def main():
 
     print("Simulation running.")
     print(f"  t = sensor trigger   b = barcode scan   q = quit"
-          f"   (pair window {config.PAIR_WINDOW:g}s, loop window {config.LOOP_WINDOW:g}s)\n")
+          f"   (pair window {eff.PAIR_WINDOW:g}s, loop window {eff.LOOP_WINDOW:g}s)\n")
 
     try:
         while True:

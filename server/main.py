@@ -150,32 +150,72 @@ def main():
     run_id = datetime.now().strftime("%Y%m%d%H%M%S")
     seq    = 0
 
-    def log_unmatched_scan(ts: float, barcode: str):
-        nonlocal seq
-        seq += 1
-        bag_id = f"scan_{run_id}_{seq}"
-        print(f"Unmatched scan (no bag nearby): {barcode}")
-        log.record(id=bag_id, status="unmatched_scan", tag_id=barcode)
-        live.add(id=bag_id, timestamp=iso(ts), status="unmatched_scan")
-
-    def on_raw_scan(ts: float, barcode: str):
-        activity.add("scan", ts, barcode)
-
-    listener = None
-    if args.barcode_mode == "scanner":
-        listener = BarcodeListener(pairer, on_unmatched=log_unmatched_scan, on_scan=on_raw_scan)
-        listener.start()
-        print(
-            "Barcode scanner subsystem started — always on, system-wide. "
-            "Scan a tag within --pair-window seconds of a trigger to pair it."
-        )
-    elif args.barcode_mode == "simulate":
-        print("Barcode mode: simulated — generating a fake tag per trigger.")
-    else:
-        print("Barcode mode: off — every bag will need a manual check.")
-
     # ── Main loop ────────────────────────────────────────────────────────────
+    # Camera opens BEFORE the barcode listener starts: a bad --camera-index
+    # fails loudly here at startup rather than during the first bag, and it
+    # means on_unmatched_scan below (a closure over `camera`) always has an
+    # already-open camera to call.
     with CameraCapture(camera_index=args.camera_index, save_dir=args.save_dir) as camera:
+
+        def on_late_match(bag_id: str, resolution):
+            # A scan showed up within --pair-window seconds of a trigger
+            # that had already been logged as 'manual' (the usual
+            # sensor-then-barcode ordering — see Pairer.on_late_match).
+            # Upgrade the board entry in place instead of leaving it stuck
+            # in Needs Attention.
+            print(f"  Late match: {bag_id} paired with {resolution.tag_id} after the fact "
+                  f"({resolution.status}) — updating the board")
+            live.update(
+                bag_id, status=resolution.status,
+                flight_number=resolution.flight_number,
+                destination=resolution.destination,
+            )
+            log.record(
+                id=bag_id, status=resolution.status,
+                tag_id=resolution.tag_id or "",
+                flight_number=resolution.flight_number or "",
+                destination=resolution.destination or "",
+                trigger_source="late-match",
+            )
+
+        pairer.on_late_match = on_late_match
+
+        def on_unmatched_scan(ts: float, barcode: str):
+            nonlocal seq
+            seq += 1
+            bag_id = f"scan_{run_id}_{seq}"
+            # The sensor never claimed this scan within --pair-window
+            # seconds — fall back to a photo now so the bag still gets a
+            # picture (tagged Needs Attention), same reasoning as run.py.
+            path = camera.capture(label=barcode)
+            print(f"Unmatched scan (no bag nearby): {barcode} — "
+                  f"{'photo captured' if path else 'capture failed'}")
+            log.record(
+                id=bag_id, status="unmatched_scan", tag_id=barcode,
+                trigger_source="barcode-fallback", trigger_raw=barcode,
+                capture_ok=bool(path), capture_path=str(path) if path else "",
+            )
+            live.add(
+                id=bag_id, timestamp=iso(ts), status="unmatched_scan",
+                photo_path=str(path) if path else None,
+            )
+
+        def on_raw_scan(ts: float, barcode: str):
+            activity.add("scan", ts, barcode)
+
+        listener = None
+        if args.barcode_mode == "scanner":
+            listener = BarcodeListener(pairer, on_unmatched=on_unmatched_scan, on_scan=on_raw_scan)
+            listener.start()
+            print(
+                "Barcode scanner subsystem started — always on, system-wide. "
+                "Scan a tag within --pair-window seconds of a trigger to pair it."
+            )
+        elif args.barcode_mode == "simulate":
+            print("Barcode mode: simulated — generating a fake tag per trigger.")
+        else:
+            print("Barcode mode: off — every bag will need a manual check.")
+
         print(f"DMMS running in {args.mode} mode. Ctrl+C to stop.")
         try:
             for event in trigger_source.events():
@@ -189,19 +229,22 @@ def main():
                     pairer.submit_scan(ts=scan_ts, barcode=tag)
                     activity.add("scan", scan_ts, tag)
 
-                resolution = pairer.resolve_trigger(trigger_ts)
+                seq += 1
+                bag_id = f"bag_{run_id}_{seq}"
+
+                # bag_id opts this trigger into a late-match second chance —
+                # see on_late_match above and Pairer.resolve_trigger's
+                # docstring.
+                resolution = pairer.resolve_trigger(trigger_ts, bag_id=bag_id)
 
                 if resolution.tag_id:
                     print(f"  Barcode: {resolution.tag_id} ({resolution.status})")
                 else:
-                    print(f"  No barcode match ({resolution.status})")
+                    print(f"  No barcode match yet ({resolution.status} for now)")
 
                 if args.delay > 0:
                     time.sleep(args.delay)
                 path = camera.capture(label=event.raw)
-
-                seq += 1
-                bag_id = f"bag_{run_id}_{seq}"
 
                 print(f"  {'Saved ' + str(path) if path else 'Capture failed'}")
 

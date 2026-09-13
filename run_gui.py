@@ -15,6 +15,7 @@ import threading
 import time
 import uuid
 import webbrowser
+from urllib.parse import urlparse, parse_qs
 
 PORT = 8080
 # Served from the repo root (not gui/) so the page can also reach
@@ -22,8 +23,15 @@ PORT = 8080
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
-FLIGHTS_JSON = os.path.join(REPO_ROOT, "gui", "flights.json")
-CANS_JSON    = os.path.join(REPO_ROOT, "gui", "cans.json")
+FLIGHTS_JSON  = os.path.join(REPO_ROOT, "gui", "flights.json")
+CANS_JSON     = os.path.join(REPO_ROOT, "gui", "cans.json")
+
+# Settings page (gui/settings.html) — camera index, serial port/baud,
+# trigger token, and pairing/timing values. run.py and sim_runner.py read
+# this (merged over config.py's defaults — see server/settings.py) at
+# their own startup, so a change here takes effect the next time either
+# is (re)started, not live while one is already running.
+SETTINGS_JSON = os.path.join(REPO_ROOT, "gui", "settings.json")
 
 # "Loaded" confirmations coming from the mobile confirmation pages
 # (mobile_swipe.html / mobile_keypad.html). Kept separate from the
@@ -60,16 +68,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def _serve_json_file(self, filepath):
+    def _serve_json_file(self, filepath, default=b"[]"):
         if os.path.exists(filepath):
             with open(filepath, "rb") as f:
                 data = f.read()
         else:
-            data = b"[]"
+            data = default
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_bytes(self, data, content_type):
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
 
@@ -102,17 +119,42 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return {}
 
     def do_GET(self):
-        if self.path == "/api/flights":
+        parsed = urlparse(self.path)
+        path   = parsed.path
+        query  = parse_qs(parsed.query)
+
+        if path == "/api/flights":
             self._serve_json_file(FLIGHTS_JSON)
-        elif self.path == "/api/cans":
+        elif path == "/api/cans":
             self._serve_json_file(CANS_JSON)
-        elif self.path == "/api/loaded":
+        elif path == "/api/loaded":
             self._serve_json_file(LOADED_JSON)
-        elif self.path == "/api/server-info":
+        elif path == "/api/settings":
+            self._serve_json_file(SETTINGS_JSON, default=b"{}")
+        elif path == "/api/config-defaults":
+            self._json_response(200, _config_defaults())
+        elif path == "/api/server-info":
             # Powers the "Mobile Access" QR-code popup on the main board —
             # it needs to know this machine's LAN IP (which changes from
             # network to network) to build the phone-facing URLs.
             self._json_response(200, {"lan_ip": _get_lan_ip() or None, "port": PORT})
+        elif path == "/api/cameras":
+            # Powers the Settings page's "Detect Cameras" button.
+            self._json_response(200, _probe_cameras())
+        elif path == "/api/camera-preview":
+            # Powers the Settings page's live per-camera preview image.
+            try:
+                index = int(query.get("index", ["0"])[0])
+            except ValueError:
+                index = 0
+            data, err = _camera_snapshot(index)
+            if data is None:
+                self._json_response(404, {"error": err})
+            else:
+                self._serve_bytes(data, "image/jpeg")
+        elif path == "/api/serial-ports":
+            # Powers the Settings page's "Refresh Ports" button.
+            self._json_response(200, _list_serial_ports())
         else:
             super().do_GET()
 
@@ -121,6 +163,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._write_json_file(FLIGHTS_JSON)
         elif self.path == "/api/cans":
             self._write_json_file(CANS_JSON)
+        elif self.path == "/api/settings":
+            os.makedirs(os.path.dirname(SETTINGS_JSON), exist_ok=True)
+            self._write_json_file(SETTINGS_JSON)
         elif self.path == "/api/loaded/mark":
             body = self._read_json_body()
             bag_id = str(body.get("id", "")).strip()
@@ -152,6 +197,100 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
+
+
+def _probe_cameras(max_index=6):
+    """Powers the Settings page's "Detect Cameras" button.
+
+    cv2 is a soft dependency here on purpose — this file otherwise runs
+    with zero third-party packages (its own docstring promises that), and
+    the Settings page's camera tools are the one part of the kiosk that
+    needs OpenCV. If it's missing, report that clearly instead of crashing
+    the whole GUI server over a feature nobody may be using yet.
+    """
+    try:
+        import cv2
+    except ImportError:
+        return {"available": False, "reason": "opencv (cv2) is not installed "
+                "in this Python environment", "cameras": []}
+
+    found = []
+    for i in range(max_index):
+        cap = cv2.VideoCapture(i)
+        try:
+            if cap.isOpened():
+                ok, frame = cap.read()
+                if ok and frame is not None:
+                    h, w = frame.shape[:2]
+                    found.append({"index": i, "width": w, "height": h})
+        finally:
+            cap.release()
+    return {"available": True, "cameras": found}
+
+
+def _camera_snapshot(index):
+    """One JPEG frame from the given camera index, for the Settings page's
+    live preview. Returns (bytes, None) on success or (None, error_message).
+    """
+    try:
+        import cv2
+    except ImportError:
+        return None, "opencv (cv2) is not installed in this Python environment"
+
+    cap = cv2.VideoCapture(index)
+    try:
+        if not cap.isOpened():
+            return None, f"could not open camera index {index}"
+        cap.read()  # discard a possibly-stale buffered frame, same as CameraCapture.capture()
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            return None, f"camera index {index} did not return a frame"
+        ok, buf = cv2.imencode(".jpg", frame)
+        if not ok:
+            return None, "failed to encode frame as JPEG"
+        return buf.tobytes(), None
+    finally:
+        cap.release()
+
+
+def _list_serial_ports():
+    """Powers the Settings page's "Refresh Ports" button.
+
+    pyserial is a soft dependency for the same reason cv2 is above — see
+    hardware.py's SerialTriggerSource, which also imports it lazily.
+    """
+    try:
+        from serial.tools import list_ports
+    except ImportError:
+        return {"available": False, "reason": "pyserial is not installed "
+                "in this Python environment", "ports": []}
+
+    ports = [{"device": p.device, "description": p.description}
+             for p in list_ports.comports()]
+    return {"available": True, "ports": ports}
+
+
+def _config_defaults():
+    """Read-only snapshot of config.py's current values, so the Settings
+    page can show what each field falls back to when left unset in
+    gui/settings.json — without hardcoding those numbers a second time
+    here and letting them drift out of sync with config.py.
+
+    Loaded fresh from the file (not a top-level `import config`) so a
+    typo in config.py reports an error from this one endpoint instead of
+    taking down the whole GUI server at startup.
+    """
+    import importlib.util
+    config_path = os.path.join(REPO_ROOT, "config.py")
+    try:
+        spec = importlib.util.spec_from_file_location("dmms_config", config_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        keys = ["SERIAL_PORT", "SERIAL_BAUD", "TRIGGER_TOKEN", "CAMERA_INDEX",
+                "PHOTO_DELAY", "PAIR_WINDOW", "LOOP_WINDOW"]
+        return {"ok": True, "values": {k: getattr(mod, k, None) for k in keys}}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 def _lan_ip():

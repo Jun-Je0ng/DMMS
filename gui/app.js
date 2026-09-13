@@ -516,19 +516,49 @@ function makeTile(event, { statusChip = null } = {}) {
   return tile;
 }
 
+// In-page zoom modal (built once, reused for every tile). This used to
+// open the photo in a new window via window.open(), but that's blocked
+// outright by kiosk-mode browsers (Chrome --kiosk and similar disable
+// window.open entirely) and is also routinely blocked by ordinary popup
+// blockers whenever the call doesn't fire perfectly synchronously with the
+// click — it didn't here, see ZOOM_CLICK_DELAY_MS above, needed to tell a
+// zoom click apart from the first half of a double-click. An in-page
+// modal, the same pattern as the "Mobile Access" QR popup, sidesteps both.
+let _zoomModalEl = null;
+
+function ensureZoomModal() {
+  if (_zoomModalEl) return _zoomModalEl;
+  const modal = document.createElement("div");
+  modal.className = "zoom-modal";
+  modal.hidden = true;
+  modal.innerHTML =
+    '<div class="zoom-modal-box">' +
+      '<button class="zoom-modal-close" aria-label="Close">&times;</button>' +
+      '<div class="zoom-modal-title"></div>' +
+      '<img class="zoom-modal-img" alt="" />' +
+    "</div>";
+  document.body.appendChild(modal);
+
+  const close = () => { modal.hidden = true; };
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+  modal.querySelector(".zoom-modal-close").addEventListener("click", close);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modal.hidden) close();
+  });
+
+  _zoomModalEl = modal;
+  return modal;
+}
+
 function openZoom(event) {
   if (!event.photo_path) return;
-  const popup = window.open("", "_blank", "width=720,height=640");
-  if (!popup) return;
-  const sub = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
-  popup.document.title = `${event.flight_number || "Unknown"} · ${sub}`;
-  popup.document.body.style.cssText =
-    "margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1524;";
-  const img = popup.document.createElement("img");
+  const modal = ensureZoomModal();
+  const sub   = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
+  modal.querySelector(".zoom-modal-title").textContent = `${event.flight_number || "Unknown"} · ${sub}`;
+  const img = modal.querySelector(".zoom-modal-img");
   img.src   = IMAGE_BASE_URL + event.photo_path;
   img.alt   = `Snapshot of ${event.id || "bag"}`;
-  img.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;";
-  popup.document.body.appendChild(img);
+  modal.hidden = false;
 }
 
 // ── Grid filling ─────────────────────────────────────────────────────────────
@@ -846,6 +876,30 @@ function pollServerLoaded() {
     .catch(() => { /* mobile sync is best-effort — board still works offline */ });
 }
 
+// ── Live settings sync (Settings page → this board, no reload) ──────────────
+// gui/settings.html writes uiScale to gui/settings.json via POST
+// /api/settings. Poll it here so every open board tab (and attention.html)
+// picks up a display-scale change within one poll interval, the same way
+// cans/flights already sync from cans.html — just via the file API instead
+// of the "storage" event, since settings.html isn't guaranteed to share
+// localStorage with every tab that might have this board open.
+let _lastAppliedUiScale = null;
+
+function pollSettings() {
+  fetch("/api/settings")
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((saved) => {
+      const scale = (saved && isFinite(saved.uiScale) && saved.uiScale > 0)
+        ? saved.uiScale
+        : ((_CFG.uiScale && isFinite(_CFG.uiScale)) ? _CFG.uiScale : 1);
+      if (scale !== _lastAppliedUiScale) {
+        document.documentElement.style.setProperty("--ui-scale", String(scale));
+        _lastAppliedUiScale = scale;
+      }
+    })
+    .catch(() => { /* best-effort — config.js's value stays in effect */ });
+}
+
 // Fire-and-forget: tell the server a bag was confirmed loaded (or the
 // confirmation was undone) so mobile pages and other kiosk windows see it.
 function postMarkLoaded(event, source) {
@@ -978,8 +1032,10 @@ if (IS_LIVE) {
 
   pollLive();
   pollServerLoaded();
+  pollSettings();
   setInterval(pollLive, LIVE_POLL_MS);
   setInterval(pollServerLoaded, LIVE_POLL_MS);
+  setInterval(pollSettings, LIVE_POLL_MS);
 } else {
   const prevBtn = el("btn-prev");
   const nextBtn = el("btn-next");

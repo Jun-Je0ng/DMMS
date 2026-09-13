@@ -1,8 +1,4 @@
 id,timestamp,status,tag_id,flight_number,destination,trigger_source,trigger_raw,capture_ok,capture_path
-bag_20260913190134_1,2026-09-13T19:01:37,manual,,,,simulated,sim-sensor,False,
-scan_20260913190134_2,2026-09-13T19:01:55,unmatched_scan,LM219-CGK,,,,,False,
-bag_20260913190134_3,2026-09-13T19:02:07,manual,,,,simulated,sim-sensor,False,
-scan_20260913190134_4,2026-09-13T19:02:12,unmatched_scan,SG334-SNG,,,,,False,
-bag_20260913190134_5,2026-09-13T19:02:22,manual,,,,simulated,sim-sensor,False,
-scan_20260913190134_6,2026-09-13T19:02:27,unmatched_scan,NZ499-NZD,,,,,False,
-scan_20260913190134_7,2026-09-13T19:02:29,unmatched_scan,QA298-SYD,,,,,False,
+bag_20260913200828_1,2026-09-13T20:08:32,matched,LM219-CGK,LM219,CGK,simulated,sim-sensor,False,
+bag_20260913200828_2,2026-09-13T20:08:34,manual,,,,simulated,sim-sensor,False,
+bag_20260913200828_2,2026-09-13T20:08:37,matched,SG334-SNG,SG334,SNG,late-match,,False,

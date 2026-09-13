@@ -1,0 +1,16 @@
+[
+  {
+    "id": "bag_20260913200828_2",
+    "flight_number": "SG334",
+    "tag": 2,
+    "source": "swipe",
+    "loaded_at": "2026-09-13T20:09:57"
+  },
+  {
+    "id": "bag_20260913200828_1",
+    "flight_number": "LM219",
+    "tag": 1,
+    "source": "swipe",
+    "loaded_at": "2026-09-13T20:10:26"
+  }
+]

@@ -2,7 +2,9 @@
 
 > For AI sessions picking up this project. Read this before touching any GUI file.
 > Last updated: September 2026 — added the two mobile bag-confirmation prototypes
-> (`mobile_swipe.html` / `mobile_keypad.html`) and the `/api/loaded` sync endpoint.
+> (`mobile_swipe.html` / `mobile_keypad.html`), the `/api/loaded` sync endpoint, and
+> the `gui/settings.html` Settings page (`server/settings.py`, `/api/settings`,
+> `/api/config-defaults`, `/api/cameras`, `/api/camera-preview`, `/api/serial-ports`).
 
 ---
 
@@ -45,6 +47,7 @@ DMMS/
 │   ├── index.html          Main board  (operator kiosk view)
 │   ├── attention.html      Needs-Attention tray (secondary window)
 │   ├── cans.html           Can & Flight management page
+│   ├── settings.html       Settings page — UI scale, camera, Arduino/serial, timing
 │   ├── mobile_swipe.html   Mobile prototype A — flight number → swipe deck → tick/cross
 │   ├── mobile_keypad.html  Mobile prototype B — numeric keypad → bag tag → confirm
 │   ├── mobile-common.js    Shared fetch/mark/unmark/formatting helpers for both mobile pages
@@ -53,14 +56,18 @@ DMMS/
 │   ├── vendor/
 │   │   ├── qrcode.js         Vendored offline QR encoder (MIT, see QRCODE-LICENSE.txt)
 │   │   └── QRCODE-LICENSE.txt
-│   ├── app.js               All board logic (routing, polling, rendering, mobile-sync)
-│   ├── config.js            Display config (uiScale — user editable, no restart needed)
+│   ├── app.js               All board logic (routing, polling, rendering, mobile-sync, settings poll)
+│   ├── config.js            Bootstrap display config (uiScale — real copy is gui/settings.json)
 │   ├── style.css            Full design system (CSS custom properties, dark theme)
 │   ├── flights.json         Persisted flight list (source of truth)
 │   ├── cans.json             Persisted can list
+│   ├── settings.json         Persisted settings-page overrides (source of truth, see below)
 │   └── resources/
 │       ├── airlines/   Airline logos — {IATA_CODE}.png  (e.g. QF.png, NZ.png)
 │       └── *.png       Brand logo and other assets
+│
+├── server/
+│   └── settings.py     Merges gui/settings.json overrides over config.py defaults — see below
 │
 ├── tests/              Unit tests (pytest)
 │   ├── test_pipeline.py   Pairer tests
@@ -70,6 +77,8 @@ DMMS/
 └── hardware/           Arduino sketch(es)
     └── ultrasonic.ino  HYSRF05 ultrasonic sensor, prints "Baggage passed" on detect
 ```
+
+(`server/settings.py` lives alongside the existing `server/` backend modules listed above — `main.py`, `hardware.py`, `pipeline.py`, `barcode.py`, `sim.py`, `diagnostics.py`.)
 
 ---
 
@@ -84,7 +93,7 @@ python run.py              # real hardware (Arduino + scanner + camera)
 python sim_runner.py       # simulation (key-press per bag, no hardware)
 ```
 
-**`config.py`** is the only file a new installation needs to edit — set `SERIAL_PORT` and `CAMERA_INDEX` to match the hardware.
+**`config.py`** holds the hardcoded defaults for a fresh installation — set `SERIAL_PORT` and `CAMERA_INDEX` to match the hardware. Once running, any of these (plus baud rate, trigger token, pairing/loop timing, and UI scale) can instead be changed from the **Settings** page (`gui/settings.html`, opened from the main board's footer) without touching this file — see "Settings Page" below.
 
 `run_gui.py` binds `0.0.0.0:8080` (not just `127.0.0.1`) so phones on the same LAN can reach `mobile_swipe.html` / `mobile_keypad.html` — it prints the LAN IP and the two mobile URLs on startup. If a phone can't connect, check Windows Firewall is allowing inbound on port 8080.
 
@@ -183,6 +192,75 @@ Unlike `/api/cans` and `/api/flights` (whole-file overwrite — fine for a singl
 
 ---
 
+## Settings Page (`gui/settings.html`)
+
+A page for the four groups of things that used to require editing `config.py` (or, for the camera, running the now-deleted `python/camera_subsystem/select_camera.py` — that whole `python/camera_subsystem/` folder was removed in an earlier backend refactor). Opened via the **⚙ Settings** button in the main board's footer (`index.html`, opens in a new tab). Modeled on `cans.html`'s layout/CSS conventions (`.mgmt-header`, `.form-field`, `.form-input`, `.btn-secondary`, `.save-status`).
+
+Four `<section class="settings-card">` blocks:
+
+- **Display** — UI Scale, with quick-pick presets (1.0 / 1.25 / 1.5 / 2.0). Applies live to every open board tab within a couple of seconds (no restart) — see `pollSettings()` below.
+- **Camera** — camera index field, **Detect Cameras** button (probes indices 0–5 via `cv2`, lists which respond), **Preview** button (fetches a live snapshot from the currently-set index so you can confirm it's pointed at the right thing before saving). Requires restarting `run.py` to take effect.
+- **Arduino / Serial** — serial port, baud rate, and trigger token fields, plus **Refresh Ports** (lists ports currently visible to `pyserial`, e.g. `COM7`, `/dev/ttyUSB0`, with descriptions when available). Requires restarting `run.py` to take effect.
+- **Timing** — photo delay, pair window, loop window (the same values `Pairer` uses). Requires restarting `run.py` / `sim_runner.py` to take effect.
+
+Every field shows the effective value: whatever is saved in `gui/settings.json`, or the `config.py` default (fetched via `/api/config-defaults`) as a greyed-out placeholder when nothing's been saved for that key yet. Saving a field POSTs the *entire* settings object to `/api/settings` (whole-file overwrite — single-admin pattern, same as `/api/cans` / `/api/flights`, unlike the per-record `/api/loaded*`).
+
+### `server/settings.py` — the override merge
+
+```python
+KEYS = {
+    "cameraIndex":  "CAMERA_INDEX",
+    "serialPort":   "SERIAL_PORT",
+    "serialBaud":   "SERIAL_BAUD",
+    "triggerToken": "TRIGGER_TOKEN",
+    "photoDelay":   "PHOTO_DELAY",
+    "pairWindow":   "PAIR_WINDOW",
+    "loopWindow":   "LOOP_WINDOW",
+}
+
+def load(config_module) -> Effective:
+    # returns an object with all of config_module's attributes, except any
+    # key present (and non-empty) in gui/settings.json overrides it
+```
+
+`run.py` and `sim_runner.py` both call `eff = settings.load(config)` once at startup and use `eff.CAMERA_INDEX`, `eff.SERIAL_PORT`, `eff.PAIR_WINDOW`, etc. instead of reading `config.*` directly — so a value saved from the Settings page takes effect the *next* time either is started, with no code edit needed. `config.py` itself is untouched and still works standalone (with a header comment now pointing at `gui/settings.json` / the Settings page as the alternative). If `gui/settings.json` doesn't exist or a key isn't in it, `config.py`'s value passes through unchanged — a fresh checkout behaves exactly as before this feature existed.
+
+### `run_gui.py` — new routes
+
+| Method | Path | Body / Query | Effect |
+|---|---|---|---|
+| `GET`  | `/api/settings` | — | Returns `gui/settings.json` contents (`{}` if missing) |
+| `POST` | `/api/settings` | full settings object | Whole-file overwrite of `gui/settings.json` |
+| `GET`  | `/api/config-defaults` | — | Returns `config.py`'s hardcoded values (loaded fresh via `importlib`, isolated so a broken `config.py` can't crash the GUI server) — used only to grey-in placeholders, never written back |
+| `GET`  | `/api/cameras` | — | Probes camera indices 0–5 with `cv2` (lazy import), returns which opened successfully. `{"available": false, "reason": "..."}` if `cv2` isn't installed |
+| `GET`  | `/api/camera-preview` | `?index=N` | One JPEG snapshot from that camera index |
+| `GET`  | `/api/serial-ports` | — | Lists ports `pyserial` currently sees. `{"available": false, "reason": "..."}` if `pyserial` isn't installed |
+
+`cv2` and `pyserial` are both **lazy imports** (inside the function, wrapped in `try/except ImportError`) — this keeps `run_gui.py`'s zero-hard-dependency guarantee: the GUI server itself still runs on a bare Python install even if neither library is present, it just reports those two settings sections as unavailable rather than crashing.
+
+### `gui/app.js` — live UI-scale polling
+
+```js
+function pollSettings() {
+  fetch("/api/settings")
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((saved) => {
+      const scale = (saved && isFinite(saved.uiScale) && saved.uiScale > 0)
+        ? saved.uiScale
+        : ((_CFG.uiScale && isFinite(_CFG.uiScale)) ? _CFG.uiScale : 1);
+      if (scale !== _lastAppliedUiScale) {
+        document.documentElement.style.setProperty("--ui-scale", String(scale));
+        _lastAppliedUiScale = scale;
+      }
+    })
+    .catch(() => { /* best-effort — config.js's value stays in effect */ });
+}
+```
+
+Called once at boot and then every `LIVE_POLL_MS` (1.5 s), alongside `pollLive()` / `pollServerLoaded()`. This is the one setting that's genuinely live — Camera/Serial/Timing all need the Python process restarted because they're read once at `run.py`/`sim_runner.py` startup, not polled.
+
+---
+
 ## `gui/app.js` — Core Logic
 
 ### Key Constants (top of file)
@@ -275,7 +353,7 @@ Per-can accent colour is passed via `--cat` on each `.quadrant` element.
 
 ---
 
-## `gui/config.js` — User-Editable Display Config
+## `gui/config.js` — Bootstrap Display Config
 
 ```js
 window.DMMS_CONFIG = {
@@ -283,7 +361,7 @@ window.DMMS_CONFIG = {
 };
 ```
 
-`app.js` reads this at load and sets `--ui-scale` on `:root`. No restart needed — just reload the browser.
+This is only the value used for the instant the page paints before `app.js`'s first `/api/settings` poll resolves (see `pollSettings()` above). The real, editable copy is `gui/settings.json`, written by the Settings page — change it there, no restart or even a reload needed, it applies to every open board tab within ~1.5 s. Editing the number in `config.js` still works as a fallback if you'd rather not open the page.
 
 ---
 
@@ -296,6 +374,7 @@ Both are **dual-persisted**: localStorage (instant, per-browser) and a JSON file
 | Flights | `dmms:flights` | `gui/flights.json` | `GET/POST /api/flights` |
 | Cans | `dmms:cans` | `gui/cans.json` | `GET/POST /api/cans` |
 | Loaded (mobile sync) | `dmms:loaded` (kiosk board only, secondary) | `data/loaded.json` | `GET /api/loaded`, `POST /api/loaded/mark`, `POST /api/loaded/unmark` |
+| Settings (UI scale, camera, serial, timing) | — (no localStorage; settings page only) | `gui/settings.json` | `GET/POST /api/settings` (see "Settings Page" above) |
 
 `run_gui.py` serves the GUI at `:8080` and handles these two endpoints. The file is the **source of truth** — on page load the file wins if it has data.
 
@@ -307,7 +386,6 @@ Both are **dual-persisted**: localStorage (instant, per-browser) and a JSON file
 
 - **`#mode-banner`** (MOCK DATA banner) and **`#btn-prev/play/next`** (demo playback controls) are still in `index.html` and `attention.html` HTML markup. They are never shown because `IS_LIVE = true` always. Safe to remove from the HTML if desired.
 - **`data/mock_events.json`** — static fixture, not auto-loaded. Useful for manual testing: copy it to `data/live_events.json` while no Python runner is active to preview the board with sample data.
-- **`config.js` comment** says "stored in localStorage". Update it to mention `gui/flights.json` and `gui/cans.json` as the real persistence layer.
 - **`run_gui.py`** still at repo root alongside new `run.py`. Eventually consolidate into one launcher or rename for clarity.
 
 ---
@@ -318,3 +396,18 @@ Both are **dual-persisted**: localStorage (instant, per-browser) and a JSON file
 - **A winner picked between the two mobile prototypes** — both stay in the repo until someone runs the usability test; don't delete either without checking with the user first.
 - **Real flight-manifest lookup** — currently `run.py` cycles through flights in order when a real scanner is used (no manifest API). The lambda in `run.py` is the placeholder to replace.
 - **Photo display** — `photo_path` is stored in events but the tile currently shows a camera icon placeholder when no image loads. Real photos from `data/captures/` should display when `run.py` is used with a real camera.
+- **A Settings page for camera/serial/UI-scale/timing** — ~~not built~~ now built (`gui/settings.html`, see "Settings Page" above). Camera/serial/timing changes still require restarting `run.py` / `sim_runner.py`; only UI scale applies live.
+
+---
+
+## Fixes: photo zoom, camera capture, and sensor/barcode ordering (September 2026)
+
+Three real bugs found running against real hardware:
+
+**1. Tile click-to-zoom silently did nothing.** `openZoom()` in `app.js` used to `window.open()` a new browser window with the photo. Kiosk-mode Chrome (`--kiosk` and similar locked-down launch flags) disables `window.open()` outright, and even in a normal browser it's an unreliable way to show something that isn't perfectly synchronous with the click (it wasn't — `ZOOM_CLICK_DELAY_MS` delays it, to tell a zoom-click apart from a double-click). Fixed by replacing it with an in-page `.zoom-modal` overlay (same pattern as the "Mobile Access" QR popup) — built once by `ensureZoomModal()`, closes on the × button, a click outside the photo, or Escape.
+
+**2. Real bags never got a photo, even with the right camera selected.** `CameraCapture.open()` (`server/hardware.py`) requested camera resolution `99999x99999` as a "give me your max" trick — several drivers (DirectShow on Windows in particular) don't clamp that gracefully, and can leave the device reporting `isOpened() == True` while every following `.read()` silently fails. Fixed: request a real resolution (1920x1080) instead, wrapped so a failure there is a warning, not fatal; `open()` now also does a warm-up read loop (up to 10 frames) so a camera that never delivers a frame fails loudly at startup instead of silently at the first bag; `capture()` retries up to 3 times instead of giving up on one failed read, and prints why a capture failed instead of failing silently.
+
+**3. The normal "sensor first, barcode a moment later" ordering was resolving as `manual`.** `Pairer.resolve_trigger()` (`server/pipeline.py`) made its matched/manual decision the instant the sensor fired, only looking at scans that had *already* arrived — but in the normal flow the barcode scan happens *after* the trigger, as the bag keeps moving, so it almost never existed yet at decision time. Fixed with a "late match" mechanism: a trigger that resolves `manual` for lack of a scan is kept open for `PAIR_WINDOW` seconds; if a scan lands within that window, `Pairer.on_late_match(bag_id, resolution)` fires and the caller (`run.py` / `sim_runner.py` / `server/main.py`) updates the board entry in place via the new `LiveFeed.update(id, **fields)` (upgrading `manual` → `matched`, filling in flight/destination) instead of leaving it stuck in Needs Attention. Scan-then-trigger ordering (either within `PAIR_WINDOW`) was already correct and is unchanged.
+
+**Also added — barcode-only fallback capture.** Previously a barcode scan with no sensor trigger nearby only ever produced a text log entry (`unmatched_scan`, no photo) once `PAIR_WINDOW` seconds passed with nothing claiming it. Now that same moment (`on_unmatched_scan` in `run.py` / `server/main.py`) also calls `camera.capture()`, so a bag still gets a picture on the board (tagged Needs Attention) even if the sensor missed it entirely. Because this fires exactly `PAIR_WINDOW` seconds after the scan, two barcode-only scans spaced closer together than `PAIR_WINDOW` will overlap here — the second bag may already be in frame (or the first gone) by the time the fallback snaps. If this path is going to be relied on routinely rather than as a rare safety net, either space scans further apart than `PAIR_WINDOW`, or lower `PAIR_WINDOW` (Settings page → Timing) to match actual belt speed.
