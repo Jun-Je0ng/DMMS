@@ -1,7 +1,107 @@
 [
   {
+    "kind": "scan",
+    "ts": 1789340582.997727,
+    "detail": "NZ499-NZD"
+  },
+  {
     "kind": "trigger",
-    "ts": 1789339978.006974,
+    "ts": 1789340592.2497542,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340596.9824698,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340607.0558436,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789340611.5496116,
+    "detail": "NZ499-NZD"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340681.3921201,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340712.0775099,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789340712.861631,
+    "detail": "NZ499-NZD"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340716.3636527,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789340716.8509758,
+    "detail": "NZ499-NZD"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340720.604629,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789340720.8387878,
+    "detail": "NZ499-NZD"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340722.049604,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789340722.2465522,
+    "detail": "NZ499-NZD"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789340724.4177427,
+    "detail": "NZ499-NZD"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340725.669109,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340728.9621577,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789340729.2510715,
+    "detail": "NZ499-NZD"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340808.7921188,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340865.5332322,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789340865.9318051,
     "detail": "sim-sensor"
   }
 ]

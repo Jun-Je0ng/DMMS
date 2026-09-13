@@ -188,6 +188,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             records = [r for r in _read_loaded() if r.get("id") != bag_id]
             _write_loaded(records)
             self._json_response(200, {"ok": True, "loaded": records})
+        elif self.path == "/api/loaded/reset":
+            _write_loaded([])
+            self._json_response(200, {"ok": True})
         else:
             self.send_error(404)
 

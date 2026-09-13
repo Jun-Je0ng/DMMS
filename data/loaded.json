@@ -12,5 +12,19 @@
     "tag": 1,
     "source": "swipe",
     "loaded_at": "2026-09-13T20:10:26"
+  },
+  {
+    "id": "bag_20260914090301_14",
+    "flight_number": null,
+    "tag": 14,
+    "source": "board",
+    "loaded_at": "2026-09-14T09:07:54"
+  },
+  {
+    "id": "bag_20260914090301_15",
+    "flight_number": null,
+    "tag": 15,
+    "source": "board",
+    "loaded_at": "2026-09-14T09:07:55"
   }
 ]

@@ -247,9 +247,30 @@ def main():
     # 'unmatched_scan' bag on the board.
     def log_unmatched_scan(ts: float, barcode: str):
         bag_id = next_bag_id("scan")
-        print(f"  [sweep]   {bag_id}: unmatched_scan — {barcode} was never claimed by a trigger")
-        log.record(id=bag_id, status="unmatched_scan", tag_id=barcode)
-        live.add(id=bag_id, timestamp=_iso(ts), status="unmatched_scan")
+        # Look up the flight for this barcode — it was registered in
+        # sim_barcode._known when do_scan() called next_tag().
+        flight        = sim_barcode.lookup(barcode)
+        flight_number = flight.get("flight_number")
+        destination   = flight.get("destination")
+        # Take a photo now — the sensor never fired for this bag, but we
+        # still want a visual record and a CAN assignment if possible.
+        path    = camera.capture(label=barcode)
+        rel_path = None
+        if path is not None:
+            try:
+                rel_path = str(path.relative_to(_ROOT / "data")).replace("\\", "/")
+            except ValueError:
+                rel_path = None
+        print(f"  [sweep]   {bag_id}: unmatched_scan — {barcode} "
+              f"({flight_number or '?'}) — sensor never fired"
+              + (f" — photo: {rel_path}" if rel_path else " — no photo"))
+        log.record(id=bag_id, status="unmatched_scan", tag_id=barcode,
+                   trigger_source="barcode-fallback", trigger_raw=barcode,
+                   capture_ok=rel_path is not None, capture_path=rel_path or "",
+                   flight_number=flight_number or "", destination=destination or "")
+        live.add(id=bag_id, timestamp=_iso(ts), status="unmatched_scan",
+                 photo_path=rel_path,
+                 flight_number=flight_number, destination=destination)
 
     stop_event = threading.Event()
 

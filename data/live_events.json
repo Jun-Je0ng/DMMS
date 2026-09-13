@@ -1,10 +1,122 @@
 [
   {
-    "id": "bag_20260914085254_1",
-    "timestamp": "2026-09-14T08:52:58",
+    "id": "scan_20260914090301_1",
+    "timestamp": "2026-09-14T09:03:02",
+    "status": "unmatched_scan",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": null
+  },
+  {
+    "id": "bag_20260914090301_2",
+    "timestamp": "2026-09-14T09:03:12",
     "status": "manual",
     "flight_number": null,
     "destination": null,
     "photo_path": null
+  },
+  {
+    "id": "bag_20260914090301_3",
+    "timestamp": "2026-09-14T09:03:16",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "bag_20260914090301_4",
+    "timestamp": "2026-09-14T09:03:27",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": null
+  },
+  {
+    "id": "scan_20260914090301_5",
+    "timestamp": "2026-09-14T09:03:31",
+    "status": "unmatched_scan",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": null
+  },
+  {
+    "id": "bag_20260914090301_6",
+    "timestamp": "2026-09-14T09:04:41",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": "captures/bag_20260914_090441_402027_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_7",
+    "timestamp": "2026-09-14T09:05:12",
+    "status": "matched",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": "captures/bag_20260914_090512_087473_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_8",
+    "timestamp": "2026-09-14T09:05:16",
+    "status": "duplicate",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": "captures/bag_20260914_090516_372826_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_9",
+    "timestamp": "2026-09-14T09:05:20",
+    "status": "duplicate",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": "captures/bag_20260914_090520_613405_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_10",
+    "timestamp": "2026-09-14T09:05:22",
+    "status": "duplicate",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": "captures/bag_20260914_090522_059471_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_11",
+    "timestamp": "2026-09-14T09:05:25",
+    "status": "duplicate",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": "captures/bag_20260914_090525_677735_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_12",
+    "timestamp": "2026-09-14T09:05:28",
+    "status": "duplicate",
+    "flight_number": "NZ499",
+    "destination": "NZD",
+    "photo_path": "captures/bag_20260914_090528_970892_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_13",
+    "timestamp": "2026-09-14T09:06:48",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": "captures/bag_20260914_090648_850877_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_14",
+    "timestamp": "2026-09-14T09:07:45",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": "captures/bag_20260914_090745_542952_sim.jpg"
+  },
+  {
+    "id": "bag_20260914090301_15",
+    "timestamp": "2026-09-14T09:07:45",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": "captures/bag_20260914_090745_955491_sim.jpg"
   }
 ]

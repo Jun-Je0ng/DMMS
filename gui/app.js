@@ -51,6 +51,11 @@ const STATUS_INFO = {
 
 const NO_ROUTE_INFO = { label: "No can match", className: "status-ambiguous" };
 
+// Statuses that always go to Needs Attention regardless of flight info.
+// unmatched_scan is intentionally NOT here — a scan with a known barcode
+// should route to its CAN just like a normal matched bag.
+const ATTENTION_STATUSES = new Set(["manual", "duplicate", "ambiguous"]);
+
 const CAMERA_ICON =
   '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M4 5h3l1.5-2h7L17 5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm8 3.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm0 2a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Z"/></svg>';
 
@@ -659,7 +664,7 @@ function render() {
   const attention = [];
 
   visible.forEach((event) => {
-    if (STATUS_INFO[event.status]) {
+    if (ATTENTION_STATUSES.has(event.status)) {
       attention.push(event);
       return;
     }

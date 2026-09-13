@@ -117,25 +117,28 @@ def main():
             # The sensor never claimed this scan within PAIR_WINDOW seconds —
             # most likely it failed to trigger for this bag. Fall back to
             # taking a photo right now so the bag still gets a picture on
-            # the board (tagged Needs Attention for a manual look), instead
-            # of only ever logging text. Because this only fires PAIR_WINDOW
-            # seconds after the scan, two barcode scans closer together than
-            # that will overlap here — the second bag may already be in
-            # frame (or the first gone) by the time this snaps. Space scans
-            # further apart than PAIR_WINDOW (Settings page → Timing) if
-            # you're relying on this fallback path routinely, not just as a
-            # rare safety net.
+            # the board, then route it to its CAN using the barcode's flight
+            # info. Because this only fires PAIR_WINDOW seconds after the
+            # scan, two barcode scans closer together than that will overlap
+            # here — space scans further apart than PAIR_WINDOW (Settings
+            # page → Timing) if you're relying on this path routinely.
+            flight        = flight_lookup(barcode)
+            flight_number = flight.get("flight_number")
+            destination   = flight.get("destination")
             path = camera.capture(label=barcode)
-            print(f"Unmatched scan (no bag nearby): {barcode} — "
+            print(f"Unmatched scan (no bag nearby): {barcode} "
+                  f"({flight_number or '?'}) — "
                   f"{'photo captured' if path else 'capture failed'}")
             log.record(
                 id=bag_id, status="unmatched_scan", tag_id=barcode,
                 trigger_source="barcode-fallback", trigger_raw=barcode,
                 capture_ok=bool(path), capture_path=str(path) if path else "",
+                flight_number=flight_number or "", destination=destination or "",
             )
             live.add(
                 id=bag_id, timestamp=_iso(ts), status="unmatched_scan",
                 photo_path=str(path) if path else None,
+                flight_number=flight_number, destination=destination,
             )
 
         def on_raw_scan(ts: float, barcode: str):
