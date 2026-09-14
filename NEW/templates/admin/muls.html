@@ -1,0 +1,14 @@
+<h1>MULs</h1>
+
+<table>
+  <tr><th>MUL ID</th><th>Name</th><th>Actions</th></tr>
+  {% for m in muls %}
+  <tr>
+    <td>{{ m[0] }}</td>
+    <td>{{ m[1] }}</td>
+    <td><a href="/admin/muls/edit/{{ m[0] }}">Edit</a></td>
+  </tr>
+  {% endfor %}
+</table>
+
+<a href="/admin/muls/add">Add MUL</a>

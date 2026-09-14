@@ -1,8 +1,9 @@
 id,timestamp,status,tag_id,flight_number,destination,trigger_source,trigger_raw,capture_ok,capture_path
-trigger_20260914125059_1,2026-09-14T12:51:08,manual,,,,serial,TRIGGER,True,data\captures\bag_20260914_125108_538985_TRIGGER.jpg
-12345,2026-09-14T12:51:22,matched,12345,VA867,,serial,TRIGGER,True,data\captures\bag_20260914_125122_592308_12345.jpg
-12345,2026-09-14T12:51:40,matched,12345,VA867,,barcode,12345,True,data\captures\bag_20260914_125140_681049_12345.jpg
-12345,2026-09-14T12:51:55,matched,12345,VA867,,serial,TRIGGER,True,data\captures\bag_20260914_125155_380352_12345.jpg
-trigger_20260914125059_4,2026-09-14T12:52:28,manual,,,,serial,TRIGGER,True,data\captures\bag_20260914_125228_286847_TRIGGER.jpg
-12345,2026-09-14T12:52:50,matched,12345,VA867,,barcode,12345,True,data\captures\bag_20260914_125250_861846_12345.jpg
-12345,2026-09-14T12:53:05,matched,12345,VA867,,barcode,12345,True,data\captures\bag_20260914_125305_605691_12345.jpg
+12345,2026-09-14T13:22:33,matched,12345,VA867,,serial,TRIGGER,True,data\captures\bag_20260914_132233_587022_12345.jpg
+trigger_20260914132222_2,2026-09-14T13:23:09,manual,,,,serial,TRIGGER,True,data\captures\bag_20260914_132309_987567_TRIGGER.jpg
+12345,2026-09-14T13:23:40,matched,12345,VA867,,serial,TRIGGER,True,data\captures\bag_20260914_132340_577522_12345.jpg
+12345,2026-09-14T13:24:30,matched,12345,VA867,,barcode,12345,True,data\captures\bag_20260914_132430_944993_12345.jpg
+trigger_20260914132222_4,2026-09-14T13:25:12,manual,,,,serial,TRIGGER,True,data\captures\bag_20260914_132512_048518_TRIGGER.jpg
+trigger_20260914132222_5,2026-09-14T13:26:01,manual,,,,serial,TRIGGER,True,data\captures\bag_20260914_132601_162683_TRIGGER.jpg
+12346,2026-09-14T13:26:15,matched,12346,QF123,,barcode,12346,True,data\captures\bag_20260914_132615_547358_12346.jpg
+11111,2026-09-14T13:26:57,matched,11111,VA867,,barcode,11111,True,data\captures\bag_20260914_132657_273650_11111.jpg

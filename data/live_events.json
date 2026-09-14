@@ -1,58 +1,66 @@
 [
   {
-    "id": "trigger_20260914125059_1",
-    "timestamp": "2026-09-14T12:51:04",
+    "id": "12345",
+    "timestamp": "2026-09-14T13:22:30",
+    "status": "matched",
+    "flight_number": "VA867",
+    "destination": null,
+    "photo_path": "data/captures/bag_20260914_132233_587022_12345.jpg"
+  },
+  {
+    "id": "trigger_20260914132222_2",
+    "timestamp": "2026-09-14T13:23:05",
     "status": "manual",
     "flight_number": null,
     "destination": null,
-    "photo_path": "data/captures/bag_20260914_125108_538985_TRIGGER.jpg"
+    "photo_path": "data/captures/bag_20260914_132309_987567_TRIGGER.jpg"
   },
   {
     "id": "12345",
-    "timestamp": "2026-09-14T12:51:19",
+    "timestamp": "2026-09-14T13:23:38",
     "status": "matched",
     "flight_number": "VA867",
     "destination": null,
-    "photo_path": "data/captures/bag_20260914_125122_592308_12345.jpg"
+    "photo_path": "data/captures/bag_20260914_132340_577522_12345.jpg"
   },
   {
     "id": "12345",
-    "timestamp": "2026-09-14T12:51:40",
+    "timestamp": "2026-09-14T13:24:30",
     "status": "matched",
     "flight_number": "VA867",
     "destination": null,
-    "photo_path": "data/captures/bag_20260914_125140_681049_12345.jpg"
+    "photo_path": "data/captures/bag_20260914_132430_944993_12345.jpg"
   },
   {
-    "id": "12345",
-    "timestamp": "2026-09-14T12:51:53",
-    "status": "matched",
-    "flight_number": "VA867",
-    "destination": null,
-    "photo_path": "data/captures/bag_20260914_125155_380352_12345.jpg"
-  },
-  {
-    "id": "trigger_20260914125059_4",
-    "timestamp": "2026-09-14T12:52:23",
+    "id": "trigger_20260914132222_4",
+    "timestamp": "2026-09-14T13:25:07",
     "status": "manual",
     "flight_number": null,
     "destination": null,
-    "photo_path": "data/captures/bag_20260914_125228_286847_TRIGGER.jpg"
+    "photo_path": "data/captures/bag_20260914_132512_048518_TRIGGER.jpg"
   },
   {
-    "id": "12345",
-    "timestamp": "2026-09-14T12:52:50",
+    "id": "trigger_20260914132222_5",
+    "timestamp": "2026-09-14T13:25:56",
+    "status": "manual",
+    "flight_number": null,
+    "destination": null,
+    "photo_path": "data/captures/bag_20260914_132601_162683_TRIGGER.jpg"
+  },
+  {
+    "id": "12346",
+    "timestamp": "2026-09-14T13:26:15",
+    "status": "matched",
+    "flight_number": "QF123",
+    "destination": null,
+    "photo_path": "data/captures/bag_20260914_132615_547358_12346.jpg"
+  },
+  {
+    "id": "11111",
+    "timestamp": "2026-09-14T13:26:57",
     "status": "matched",
     "flight_number": "VA867",
     "destination": null,
-    "photo_path": "data/captures/bag_20260914_125250_861846_12345.jpg"
-  },
-  {
-    "id": "12345",
-    "timestamp": "2026-09-14T12:53:05",
-    "status": "matched",
-    "flight_number": "VA867",
-    "destination": null,
-    "photo_path": "data/captures/bag_20260914_125305_605691_12345.jpg"
+    "photo_path": "data/captures/bag_20260914_132657_273650_11111.jpg"
   }
 ]

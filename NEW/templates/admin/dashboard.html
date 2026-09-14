@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    .admin-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+    .admin-card {
+      border: 1px solid #444; padding: 1rem; border-radius: 8px;
+      background: #222; color: #eee; text-align: center;
+    }
+    .admin-card a { color: #4ea3ff; text-decoration: none; font-size: 1.2rem; }
+  </style>
+</head>
+<body>
+
+<h1>Admin Dashboard</h1>
+
+<div class="admin-grid">
+  <div class="admin-card"><a href="/admin/flights">Manage Flights</a></div>
+  <div class="admin-card"><a href="/admin/cans">Manage CANs</a></div>
+  <div class="admin-card"><a href="/admin/muls">Manage MULs</a></div>
+  <div class="admin-card"><a href="/admin/users">Manage Users</a></div>
+  <div class="admin-card"><a href="/admin/bag-lookup">Bag Lookup</a></div>
+  <div class="admin-card"><a href="/attention">Needs Attention</a></div>
+</div>
+
+</body>
+</html>

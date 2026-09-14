@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Needs Attention</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    .bag-card { border: 1px solid #444; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
+    .bag-photo { width: 100%; border-radius: 6px; }
+    .bag-info { margin-top: 0.5rem; }
+    .action-btn {
+      width: 100%; padding: 1rem; margin-top: 0.5rem;
+      border-radius: 6px; font-size: 1.1rem; border: none;
+    }
+    .resolve { background: #28a745; color: white; }
+    .reject { background: #dc3545; color: white; }
+    .assign { background: #007bff; color: white; }
+  </style>
+</head>
+<body>
+
+<h1>Bags Needing Attention</h1>
+
+{% for bag in bags %}
+  <div class="bag-card">
+    <img src="/{{ bag[2] }}" class="bag-photo" alt="Bag photo" />
+
+    <div class="bag-info">
+      <strong>Bag ID:</strong> {{ bag[1] }}<br>
+      <strong>Flight:</strong> {{ bag[4] }} → {{ bag[5] }}<br>
+      <strong>Reason:</strong> {{ bag[6] }}<br>
+      <strong>Time:</strong> {{ bag[7] | datetime }}
+    </div>
+
+    <form action="/attention/resolve" method="POST">
+      <input type="hidden" name="bag_id" value="{{ bag[0] }}" />
+      <button class="action-btn resolve">Mark as Resolved</button>
+    </form>
+
+    <form action="/attention/reject" method="POST">
+      <input type="hidden" name="bag_id" value="{{ bag[0] }}" />
+      <button class="action-btn reject">Reject Bag</button>
+    </form>
+
+    <form action="/attention/assign" method="POST">
+      <input type="hidden" name="bag_id" value="{{ bag[0] }}" />
+      <label>Assign Flight:</label>
+      <select name="flight_id">
+        {% for f in flights %}
+          <option value="{{ f.flight_id }}">{{ f.flight_number }} → {{ f.destination }}</option>
+        {% endfor %}
+      </select>
+      <button class="action-btn assign">Assign Flight</button>
+    </form>
+  </div>
+{% endfor %}
+
+{% if bags|length == 0 %}
+  <p>No bags need attention.</p>
+{% endif %}
+
+</body>
+</html>

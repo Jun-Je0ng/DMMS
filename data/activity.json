@@ -1,57 +1,72 @@
 [
   {
     "kind": "trigger",
-    "ts": 1789354264.0247757,
-    "detail": "TRIGGER"
-  },
-  {
-    "kind": "trigger",
-    "ts": 1789354279.2297397,
+    "ts": 1789356150.8513079,
     "detail": "TRIGGER"
   },
   {
     "kind": "scan",
-    "ts": 1789354282.0625231,
+    "ts": 1789356153.0655174,
     "detail": "12345"
   },
   {
     "kind": "scan",
-    "ts": 1789354300.6598797,
-    "detail": "12345"
-  },
-  {
-    "kind": "trigger",
-    "ts": 1789354313.8256829,
-    "detail": "TRIGGER"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789354314.8646982,
-    "detail": "12345"
-  },
-  {
-    "kind": "trigger",
-    "ts": 1789354343.7724652,
-    "detail": "TRIGGER"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789354370.8362896,
-    "detail": "12345"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789354385.586375,
-    "detail": "12345"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789354501.2364006,
-    "detail": "okaywhenaduplicateisscannedtheoriginalimagestartsstutering/blinkingcanyouspotanything"
+    "ts": 1789356153.3300061,
+    "detail": "1234512345"
   },
   {
     "kind": "scan_unknown",
-    "ts": 1789354501.2364006,
-    "detail": "okaywhenaduplicateisscannedtheoriginalimagestartsstutering/blinkingcanyouspotanything"
+    "ts": 1789356153.3300061,
+    "detail": "1234512345"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789356185.467666,
+    "detail": "TRIGGER"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789356218.2534134,
+    "detail": "TRIGGER"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789356220.0616565,
+    "detail": "12345"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789356270.9136126,
+    "detail": "12345"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789356307.5085912,
+    "detail": "TRIGGER"
+  },
+  {
+    "kind": "trigger",
+    "ts": 1789356356.6462162,
+    "detail": "TRIGGER"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789356375.5354958,
+    "detail": "12346"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789356417.2352092,
+    "detail": "11111"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789356793.616703,
+    "detail": "se"
+  },
+  {
+    "kind": "scan_unknown",
+    "ts": 1789356793.616703,
+    "detail": "se"
   }
 ]

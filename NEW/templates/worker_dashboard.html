@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Worker Loading — MUL {{ mul_id }}</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    .bag-card { border: 1px solid #444; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
+    .bag-photo { width: 100%; border-radius: 6px; }
+    .bag-info { margin-top: 0.5rem; }
+    .load-btn {
+      width: 100%; padding: 1rem; margin-top: 1rem;
+      background: #28a745; color: white; border: none;
+      border-radius: 6px; font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+
+<h1>MUL {{ mul_id }} — Load Bags</h1>
+
+{% for bag in bags %}
+  <div class="bag-card">
+    <img src="/{{ bag[2] }}" class="bag-photo" alt="Bag photo" />
+
+    <div class="bag-info">
+      <strong>Bag ID:</strong> {{ bag[1] }}<br>
+      <strong>Flight:</strong> {{ bag[4] }} → {{ bag[5] }}<br>
+      <strong>CAN:</strong> {{ bag[7] }}
+    </div>
+
+    <form action="/worker/load" method="POST">
+      <input type="hidden" name="bag_id" value="{{ bag[0] }}" />
+      <input type="hidden" name="mul_id" value="{{ mul_id }}" />
+      <button class="load-btn">Confirm Loaded</button>
+    </form>
+  </div>
+{% endfor %}
+
+{% if bags|length == 0 %}
+  <p>No bags awaiting loading.</p>
+{% endif %}
+
+</body>
+</html>

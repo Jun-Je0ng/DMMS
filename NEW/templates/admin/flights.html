@@ -1,0 +1,23 @@
+<h1>Flights</h1>
+
+<table>
+  <tr>
+    <th>ID</th><th>Flight</th><th>Destination</th><th>Gate</th><th>Departure</th><th>Actions</th>
+  </tr>
+  {% for f in flights %}
+  <tr>
+    <td>{{ f[0] }}</td>
+    <td>{{ f[1] }}</td>
+    <td>{{ f[3] }}</td>
+    <td>{{ f[4] }}</td>
+    <td>{{ f[2] }}</td>
+    <td>
+      <a href="/admin/flights/edit/{{ f[0] }}">Edit</a>
+      <a href="/admin/flights/delete/{{ f[0] }}">Delete</a>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<a href="/admin/flights/add">Add Flight</a>
+

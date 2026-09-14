@@ -1,0 +1,24 @@
+<h1>Settings for MUL {{ mul_id }}</h1>
+
+<form action="/admin/settings/update" method="POST">
+
+  <label>Laser Serial Port</label>
+  <input type="text" name="laser_serial_port" value="{{ cfg.laser_serial_port }}">
+
+  <label>Barcode Serial Port</label>
+  <input type="text" name="barcode_serial_port" value="{{ cfg.barcode_serial_port }}">
+
+  <label>Camera Device Index</label>
+  <input type="number" name="camera_device_index" value="{{ cfg.camera_device_index }}">
+
+  <label>Camera Resolution (Width)</label>
+  <input type="number" name="camera_width" value="{{ cfg.camera_resolution[0] }}">
+
+  <label>Camera Resolution (Height)</label>
+  <input type="number" name="camera_height" value="{{ cfg.camera_resolution[1] }}">
+
+  <label>Laser Timeout (seconds)</label>
+  <input type="number" step="0.1" name="laser_timeout" value="{{ cfg.laser_timeout }}">
+
+  <button type="submit">Save Settings</button>
+</form>

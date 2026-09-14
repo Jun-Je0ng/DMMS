@@ -1,0 +1,15 @@
+<h1>Users</h1>
+
+<table>
+  <tr><th>ID</th><th>Name</th><th>Type</th><th>Actions</th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u[0] }}</td>
+    <td>{{ u[1] }}</td>
+    <td>{{ u[2] }}</td>
+    <td><a href="/admin/users/edit/{{ u[0] }}">Edit</a></td>
+  </tr>
+  {% endfor %}
+</table>
+
+<a href="/admin/users/add">Add User</a>

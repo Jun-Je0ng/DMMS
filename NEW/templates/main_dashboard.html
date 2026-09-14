@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MUL Baggage Routing</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="kiosk">
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-text">
+          <h1>MUL Baggage Routing</h1>
+          <p class="muted">Make-Up Line · Can Assignment Board</p>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-tile">
+          <span class="stat-value">{{ stats.total_scanned }}</span>
+          <span class="stat-label">Scanned</span>
+        </div>
+        <div class="stat-tile stat-accent">
+          <span class="stat-value">{{ stats.in_can }}</span>
+          <span class="stat-label">In a Can</span>
+        </div>
+        <div class="stat-tile stat-flagged">
+          <span class="stat-value">{{ stats.needs_attention }}</span>
+          <span class="stat-label">Needs Attention</span>
+        </div>
+        <div class="stat-tile stat-good">
+          <span class="stat-value">{{ stats.loaded }}</span>
+          <span class="stat-label">Loaded</span>
+        </div>
+      </div>
+
+      <div class="live-clock-wrap">
+        <span class="live-clock" id="live-clock">--:--:--</span>
+        <span class="live-clock-label">Local Time</span>
+      </div>
+    </header>
+
+    <main class="board">
+      <div class="quadrants">
+        {% for flight in flights %}
+          <section class="quadrant">
+            <header class="quadrant-header">
+              <h2>{{ flight.flight_number }} — {{ flight.destination }}</h2>
+              <p class="muted">
+                Gate {{ flight.gate_number }} · Departs {{ flight.departure_time }}
+              </p>
+            </header>
+            <div class="bag-grid">
+              {% for bag in flight.bags %}
+                <article class="bag-tile bag-status-{{ bag.status }}">
+                  <img src="/{{ bag.photo_path }}" alt="Bag {{ bag.bag_short_id }}" class="bag-photo" />
+                  <div class="bag-meta">
+                    <span class="bag-id">#{{ bag.bag_short_id }}</span>
+                    <span class="bag-status">{{ bag.status }}</span>
+                  </div>
+                </article>
+              {% endfor %}
+              {% if flight.bags|length == 0 %}
+                <p class="muted">No bags scanned for this flight yet.</p>
+              {% endif %}
+            </div>
+          </section>
+        {% endfor %}
+      </div>
+    </main>
+
+    <footer class="footbar">
+      <span class="muted">Live board · auto-refresh</span>
+    </footer>
+
+  </div>
+
+  <script>
+    // Live clock
+    function updateClock() {
+      const el = document.getElementById("live-clock");
+      const now = new Date();
+      el.textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Auto-refresh every 5 seconds
+    setInterval(() => {
+      window.location.reload();
+    }, 5000);
+  </script>
+</body>
+</html>
