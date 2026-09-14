@@ -1,201 +1,1198 @@
+# """
+# run.py — hardware runner.
+
+# Barcode flow:
+
+#     Laser trigger
+#         ↓
+#     bag is physically present
+#         ↓
+#     wait for barcode
+#         ↓
+#     barcode → data/bag_ids.json → flight
+#         ↓
+#     camera
+#         ↓
+#     live_events.json
+
+# Fallback:
+
+#     barcode arrives with no laser waiting
+#         ↓
+#     immediate camera capture
+
+# Run:
+#     python run.py
+# """
+
+# import json
+# import shutil
+# import sys
+# import threading
+# import time
+# from datetime import datetime
+# from pathlib import Path
+
+# # ── Local imports ─────────────────────────────────────────────────────────────
+
+# _ROOT = Path(__file__).resolve().parent
+# _SERVER = _ROOT / "server"
+# sys.path.insert(0, str(_SERVER))
+
+# import config  # noqa: E402
+# import settings  # noqa: E402
+# from hardware import CameraCapture, SerialTriggerSource  # noqa: E402
+# from pipeline import ActivityFeed, EventLog, LiveFeed  # noqa: E402
+# from barcode import BarcodeListener  # noqa: E402
+
+
+# # ── Bag database ──────────────────────────────────────────────────────────────
+
+# _BAG_IDS_FILE = _ROOT / "data" / "bag_ids.json"
+
+
+# def _load_bag_ids() -> dict:
+#     """
+#     Load data/bag_ids.json.
+
+#     Example:
+
+#     [
+#         {
+#             "bagID": "12345",
+#             "flight": "VA867",
+#             "destination": "BNE"
+#         },
+#         {
+#             "bagID": "12346",
+#             "flight": "QF12",
+#             "destination": "LAX"
+#         }
+#     ]
+#     """
+
+#     if not _BAG_IDS_FILE.exists():
+#         raise FileNotFoundError(
+#             f"{_BAG_IDS_FILE} not found.\n"
+#             "Create data/bag_ids.json with bagID, flight "
+#             "and optionally destination."
+#         )
+
+#     try:
+#         data = json.loads(
+#             _BAG_IDS_FILE.read_text(encoding="utf-8")
+#         )
+#     except json.JSONDecodeError as exc:
+#         raise ValueError(
+#             f"{_BAG_IDS_FILE} contains invalid JSON: {exc}"
+#         ) from exc
+
+#     if not isinstance(data, list):
+#         raise ValueError(
+#             "data/bag_ids.json must contain a JSON array."
+#         )
+
+#     lookup = {}
+
+#     for entry in data:
+#         if not isinstance(entry, dict):
+#             continue
+
+#         bag_id = str(
+#             entry.get("bagID", "")
+#         ).strip()
+
+#         if not bag_id:
+#             continue
+
+#         lookup[bag_id] = {
+#             "flight_number": str(
+#                 entry.get("flight", "")
+#             ).strip(),
+#             "destination": str(
+#                 entry.get("destination", "")
+#             ).strip(),
+#         }
+
+#     if not lookup:
+#         raise ValueError(
+#             "data/bag_ids.json contains no valid bag entries."
+#         )
+
+#     return lookup
+
+
+# # ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+# def _iso(ts: float) -> str:
+#     return datetime.fromtimestamp(
+#         ts
+#     ).isoformat(
+#         timespec="seconds"
+#     )
+
+
+# # ── Main ──────────────────────────────────────────────────────────────────────
+
+
+# def main():
+
+#     bag_lookup = _load_bag_ids()
+
+#     print(
+#         f"Loaded {len(bag_lookup)} bag IDs "
+#         f"from {_BAG_IDS_FILE}"
+#     )
+
+#     eff = settings.load(config)
+
+#     trigger_source = SerialTriggerSource(
+#         port=eff.SERIAL_PORT,
+#         baud=eff.SERIAL_BAUD,
+#         token=eff.TRIGGER_TOKEN,
+#     )
+
+#     # ── Output files ──────────────────────────────────────────────────────────
+
+#     log_path = Path(
+#         "data/events_with_flights.csv"
+#     )
+
+#     if log_path.exists():
+#         log_path.unlink()
+
+#     log = EventLog(
+#         str(log_path)
+#     )
+
+#     live = LiveFeed(
+#         "data/live_events.json"
+#     )
+
+#     activity = ActivityFeed(
+#         "data/activity.json"
+#     )
+
+#     # ── Capture directory ─────────────────────────────────────────────────────
+
+#     save_dir = Path(
+#         "data/captures"
+#     )
+
+#     if save_dir.exists():
+#         shutil.rmtree(save_dir)
+
+#     save_dir.mkdir(
+#         parents=True,
+#         exist_ok=True,
+#     )
+
+#     run_id = datetime.now().strftime(
+#         "%Y%m%d%H%M%S"
+#     )
+
+#     seq = 0
+
+#     # ── Pairing state ─────────────────────────────────────────────────────────
+
+#     # When a laser trigger fires, this contains the bag event
+#     # currently waiting for a barcode.
+#     pending_trigger = None
+
+#     # Protects pending_trigger because barcode.py calls its
+#     # callback from another thread.
+#     pairing_lock = threading.Lock()
+
+#     # ── Camera ─────────────────────────────────────────────────────────────────
+
+#     with CameraCapture(
+#         camera_index=eff.CAMERA_INDEX,
+#         save_dir=str(save_dir),
+#     ) as camera:
+
+#         # ── Barcode handler ──────────────────────────────────────────────────
+
+#         def on_barcode_scan(
+#             ts: float,
+#             barcode: str,
+#         ):
+#             """
+#             Handle a barcode scan.
+
+#             Case 1:
+#                 A laser trigger is waiting.
+#                 → attach barcode to that trigger.
+#                 → laser path takes the photo.
+
+#             Case 2:
+#                 No laser trigger is waiting.
+#                 → barcode acts as fallback.
+#                 → take photo immediately.
+#             """
+
+#             nonlocal seq
+#             nonlocal pending_trigger
+
+#             barcode = str(
+#                 barcode
+#             ).strip()
+
+#             if not barcode:
+#                 return
+
+#             print(
+#                 f"Barcode scanned: {barcode}"
+#             )
+
+#             activity.add(
+#                 "scan",
+#                 ts,
+#                 barcode,
+#             )
+
+#             # ── Look up bag ──────────────────────────────────────────────────
+
+#             bag = bag_lookup.get(
+#                 barcode
+#             )
+
+#             if bag is None:
+
+#                 print(
+#                     f"  UNKNOWN BAG ID: {barcode}"
+#                 )
+
+#                 activity.add(
+#                     "scan_unknown",
+#                     ts,
+#                     barcode,
+#                 )
+
+#                 return
+
+#             flight_number = bag.get(
+#                 "flight_number",
+#                 "",
+#             )
+
+#             destination = bag.get(
+#                 "destination",
+#                 "",
+#             )
+
+#             print(
+#                 f"  Bag {barcode} → "
+#                 f"{flight_number or '?'}"
+#                 f"{' → ' + destination if destination else ''}"
+#             )
+
+#             # ── Try to pair with laser ──────────────────────────────────────
+
+#             with pairing_lock:
+
+#                 trigger = pending_trigger
+
+#                 if trigger is not None:
+
+#                     # Claim the waiting laser event.
+#                     pending_trigger = None
+
+#             if trigger is not None:
+
+#                 # Barcode belongs to the laser-triggered bag.
+#                 trigger["barcode"] = barcode
+#                 trigger["flight_number"] = flight_number
+#                 trigger["destination"] = destination
+#                 trigger["barcode_ts"] = ts
+#                 trigger["event"].set()
+
+#                 print(
+#                     f"  Paired with laser trigger "
+#                     f"{trigger['bag_event_id']}"
+#                 )
+
+#                 return
+
+#             # ── No laser waiting → barcode fallback ─────────────────────────
+
+#             seq += 1
+
+#             bag_event_id = (
+#                 f"bag_{run_id}_{seq}"
+#             )
+
+#             bag_event_id = bag.get("bagID")
+
+#             print(
+#                 f"  No laser waiting — "
+#                 f"barcode fallback capture"
+#             )
+
+#             path = camera.capture(
+#                 label=barcode
+#             )
+
+#             print(
+#                 f"  "
+#                 f"{'Saved ' + str(path) if path else 'Capture failed'}"
+#             )
+
+#             log.record(
+#                 id=bag_event_id,
+#                 status="matched",
+#                 trigger_source="barcode",
+#                 trigger_raw=barcode,
+#                 capture_ok=bool(path),
+#                 capture_path=str(path)
+#                 if path
+#                 else "",
+#                 tag_id=barcode,
+#                 flight_number=flight_number,
+#                 destination=destination,
+#             )
+
+#             live.add(
+#                 id=bag_event_id,
+#                 timestamp=_iso(ts),
+#                 status="matched",
+#                 photo_path=path.as_posix()
+#                 if path
+#                 else None,
+#                 flight_number=flight_number,
+#                 destination=destination,
+#             )
+
+#             print(
+#                 f"  Added to board: "
+#                 f"#{barcode}"
+#             )
+
+#         # ── Barcode listener ──────────────────────────────────────────────────
+
+#         listener = BarcodeListener(
+#             on_scan=on_barcode_scan,
+#         )
+
+#         listener.start()
+
+#         print(
+#             "Barcode scanner subsystem started — "
+#             "always on, system-wide."
+#         )
+
+#         print(
+#             "Laser + barcode pairing enabled."
+#         )
+
+#         print(
+#             f"  Laser waits up to "
+#             f"{eff.PAIR_WINDOW}s for barcode."
+#         )
+
+#         print(
+#             "  Barcode without laser → "
+#             "immediate fallback capture."
+#         )
+
+#         print(
+#             f"DMMS running — serial port "
+#             f"{eff.SERIAL_PORT}, "
+#             f"camera index {eff.CAMERA_INDEX}. "
+#             f"Ctrl+C to stop."
+#         )
+
+#         # ── Sensor trigger loop ──────────────────────────────────────────────
+
+#         try:
+
+#             for event in trigger_source.events():
+
+#                 trigger_ts = time.time()
+
+#                 print(
+#                     f"Trigger: {event.raw}"
+#                 )
+
+#                 activity.add(
+#                     "trigger",
+#                     trigger_ts,
+#                     event.raw,
+#                 )
+
+#                 seq += 1
+
+#                 bag_event_id = (
+#                     f"bag_{run_id}_{seq}"
+#                 )
+
+#                 # Event used by barcode callback
+#                 # to wake this trigger.
+#                 barcode_event = threading.Event()
+
+#                 trigger_info = {
+#                     "bag_event_id": bag_event_id,
+#                     "event": barcode_event,
+#                     "barcode": None,
+#                     "flight_number": "",
+#                     "destination": "",
+#                     "barcode_ts": None,
+#                 }
+
+#                 # ── Become the active laser trigger ─────────────────────────
+
+#                 with pairing_lock:
+
+#                     # If another trigger was somehow still waiting,
+#                     # the previous one gets finalized as manual below.
+#                     previous = pending_trigger
+
+#                     pending_trigger = trigger_info
+
+#                 if previous is not None:
+
+#                     print(
+#                         "  Warning: previous laser trigger "
+#                         "was still waiting."
+#                     )
+
+#                 # ── Wait for barcode ────────────────────────────────────────
+
+#                 got_barcode = barcode_event.wait(
+#                     timeout=eff.PAIR_WINDOW
+#                 )
+
+#                 # ── Take ownership of trigger state ─────────────────────────
+
+#                 with pairing_lock:
+
+#                     if pending_trigger is trigger_info:
+
+#                         pending_trigger = None
+
+#                 # ── Barcode arrived ─────────────────────────────────────────
+
+#                 if got_barcode:
+
+#                     barcode = trigger_info["barcode"]
+#                     flight_number = trigger_info[
+#                         "flight_number"
+#                     ]
+#                     destination = trigger_info[
+#                         "destination"
+#                     ]
+
+#                     status = "matched"
+
+#                     print(
+#                         f"  Barcode: {barcode} "
+#                         f"({flight_number or '?'})"
+#                     )
+
+#                     capture_label = barcode
+
+#                 # ── No barcode ──────────────────────────────────────────────
+
+#                 else:
+
+#                     barcode = ""
+#                     flight_number = ""
+#                     destination = ""
+
+#                     status = "manual"
+
+#                     print(
+#                         f"  No barcode within "
+#                         f"{eff.PAIR_WINDOW}s "
+#                         f"(manual)"
+#                     )
+
+#                     capture_label = event.raw
+
+#                 # ── Optional camera delay ───────────────────────────────────
+
+#                 if eff.PHOTO_DELAY > 0:
+
+#                     time.sleep(
+#                         eff.PHOTO_DELAY
+#                     )
+
+#                 # ── Capture exactly once ────────────────────────────────────
+
+#                 path = camera.capture(
+#                     label=capture_label
+#                 )
+
+#                 print(
+#                     f"  "
+#                     f"{'Saved ' + str(path) if path else 'Capture failed'}"
+#                 )
+
+#                 # ── Log ─────────────────────────────────────────────────────
+
+#                 log.record(
+#                     id=bag_event_id,
+#                     status=status,
+#                     trigger_source=event.source,
+#                     trigger_raw=event.raw,
+#                     capture_ok=bool(path),
+#                     capture_path=str(path)
+#                     if path
+#                     else "",
+#                     tag_id=barcode,
+#                     flight_number=flight_number,
+#                     destination=destination,
+#                 )
+
+#                 # ── Live board ──────────────────────────────────────────────
+
+#                 live.add(
+#                     id=bag_event_id,
+#                     timestamp=_iso(trigger_ts),
+#                     status=status,
+#                     photo_path=path.as_posix()
+#                     if path
+#                     else None,
+#                     flight_number=flight_number,
+#                     destination=destination,
+#                 )
+
+#         except KeyboardInterrupt:
+
+#             print(
+#                 "\nStopped."
+#             )
+
+#         finally:
+
+#             listener.stop()
+#             log.close()
+
+
+# if __name__ == "__main__":
+#     main()
+
+
 """
-run.py — hardware runner. Edit config.py for your serial port and camera, then:
+run.py — hardware runner.
 
-  python run.py
+Barcode flow:
 
-That's it. No flags needed.
+    Laser trigger
+        ↓
+    bag is physically present
+        ↓
+    wait for barcode
+        ↓
+    barcode → data/bag_ids.json → flight
+        ↓
+    camera
+        ↓
+    live_events.json
+
+Fallback:
+
+    barcode arrives with no laser waiting
+        ↓
+    immediate camera capture
+
+Important:
+    The real bag ID from data/bag_ids.json is used as the event ID.
+    No generated bag IDs are used once a barcode is known.
+
+Run:
+    python run.py
 """
 
-import itertools
 import json
 import shutil
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
 # ── Local imports ─────────────────────────────────────────────────────────────
-_ROOT   = Path(__file__).resolve().parent
+
+_ROOT = Path(__file__).resolve().parent
 _SERVER = _ROOT / "server"
 sys.path.insert(0, str(_SERVER))
 
-import config    # noqa: E402
+import config  # noqa: E402
 import settings  # noqa: E402
-from hardware import CameraCapture, SerialTriggerSource
-from pipeline import ActivityFeed, EventLog, LiveFeed, Pairer
-from barcode  import BarcodeListener
-
-# ── Flights ───────────────────────────────────────────────────────────────────
-_FLIGHTS_FILE = _ROOT / "gui" / "flights.json"
+from hardware import CameraCapture, SerialTriggerSource  # noqa: E402
+from pipeline import ActivityFeed, EventLog, LiveFeed  # noqa: E402
+from barcode import BarcodeListener  # noqa: E402
 
 
-def _load_flights() -> list:
-    if not _FLIGHTS_FILE.exists():
+# ── Bag database ──────────────────────────────────────────────────────────────
+
+_BAG_IDS_FILE = _ROOT / "data" / "bag_ids.json"
+
+
+def _load_bag_ids() -> dict:
+    """
+    Load data/bag_ids.json.
+
+    Example:
+
+    [
+        {
+            "bagID": "12345",
+            "flight": "VA867",
+            "destination": "BNE"
+        },
+        {
+            "bagID": "12346",
+            "flight": "QF12",
+            "destination": "LAX"
+        }
+    ]
+
+    Returns:
+
+    {
+        "12345": {
+            "bag_id": "12345",
+            "flight_number": "VA867",
+            "destination": "BNE"
+        }
+    }
+    """
+
+    if not _BAG_IDS_FILE.exists():
         raise FileNotFoundError(
-            f"{_FLIGHTS_FILE} not found.\n"
-            "Add flights via the GUI and they will be saved there automatically."
+            f"{_BAG_IDS_FILE} not found.\n"
+            "Create data/bag_ids.json with bagID, flight "
+            "and optionally destination."
         )
-    flights = json.loads(_FLIGHTS_FILE.read_text(encoding="utf-8"))
-    if not isinstance(flights, list) or not flights:
-        raise ValueError("gui/flights.json is empty — add at least one flight via the GUI.")
-    return flights
+
+    try:
+        data = json.loads(
+            _BAG_IDS_FILE.read_text(encoding="utf-8")
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{_BAG_IDS_FILE} contains invalid JSON: {exc}"
+        ) from exc
+
+    if not isinstance(data, list):
+        raise ValueError(
+            "data/bag_ids.json must contain a JSON array."
+        )
+
+    lookup = {}
+
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+
+        bag_id = str(
+            entry.get("bagID", "")
+        ).strip()
+
+        if not bag_id:
+            continue
+
+        lookup[bag_id] = {
+            "bag_id": bag_id,
+            "flight_number": str(
+                entry.get("flight", "")
+            ).strip(),
+            "destination": str(
+                entry.get("destination", "")
+            ).strip(),
+        }
+
+    if not lookup:
+        raise ValueError(
+            "data/bag_ids.json contains no valid bag entries."
+        )
+
+    return lookup
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _iso(ts: float) -> str:
-    return datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+    return datetime.fromtimestamp(
+        ts
+    ).isoformat(
+        timespec="seconds"
+    )
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 
 def main():
-    flights  = _load_flights()
-    eff      = settings.load(config)   # config.py defaults + gui/settings.json overrides
+
+    bag_lookup = _load_bag_ids()
+
+    print(
+        f"Loaded {len(bag_lookup)} bag IDs "
+        f"from {_BAG_IDS_FILE}"
+    )
+
+    eff = settings.load(config)
+
     trigger_source = SerialTriggerSource(
         port=eff.SERIAL_PORT,
         baud=eff.SERIAL_BAUD,
         token=eff.TRIGGER_TOKEN,
     )
 
-    # No manifest to resolve a real tag against yet — cycle through flights in
-    # order.  Replace the lambda with a real lookup (API, database, etc.) when
-    # a flight-manifest integration is available.
-    flight_cycle  = itertools.cycle(flights)
-    flight_lookup = lambda _tag_id: next(flight_cycle)  # noqa: E731
+    # ── Output files ──────────────────────────────────────────────────────────
 
-    pairer   = Pairer(
-        pair_window=eff.PAIR_WINDOW,
-        loop_window=eff.LOOP_WINDOW,
-        flight_lookup=flight_lookup,
+    log_path = Path(
+        "data/events_with_flights.csv"
     )
 
-    log_path = Path("data/events_with_flights.csv")
     if log_path.exists():
         log_path.unlink()
-    log      = EventLog(str(log_path))
-    live     = LiveFeed("data/live_events.json")
-    activity = ActivityFeed("data/activity.json")
 
-    save_dir = Path("data/captures")
+    log = EventLog(
+        str(log_path)
+    )
+
+    live = LiveFeed(
+        "data/live_events.json"
+    )
+
+    activity = ActivityFeed(
+        "data/activity.json"
+    )
+
+    # ── Capture directory ─────────────────────────────────────────────────────
+
+    save_dir = Path(
+        "data/captures"
+    )
+
     if save_dir.exists():
         shutil.rmtree(save_dir)
 
-    run_id = datetime.now().strftime("%Y%m%d%H%M%S")
-    seq    = 0
+    save_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    # Camera opens BEFORE the barcode listener starts (rather than the other
-    # way around) for two reasons: a bad camera index fails loudly here at
-    # startup instead of during the first bag of the shift, and it means
-    # on_unmatched_scan below (a closure over `camera`) always has a real,
-    # already-open camera to call — no risk of a scan's fallback-capture
-    # timer firing before `camera` exists.
-    with CameraCapture(camera_index=eff.CAMERA_INDEX, save_dir=str(save_dir)) as camera:
+    run_id = datetime.now().strftime(
+        "%Y%m%d%H%M%S"
+    )
 
-        def on_late_match(bag_id: str, resolution):
-            # A scan showed up within PAIR_WINDOW seconds of a trigger that
-            # had already been logged as 'manual' (the sensor-then-barcode
-            # ordering — see Pairer.on_late_match). Upgrade the board entry
-            # in place rather than leaving it stuck in Needs Attention.
-            print(f"  Late match: {bag_id} paired with {resolution.tag_id} after the fact "
-                  f"({resolution.status}) — updating the board")
-            live.update(
-                bag_id, status=resolution.status,
-                flight_number=resolution.flight_number,
-                destination=resolution.destination,
+    # Only used for temporary laser-trigger bookkeeping.
+    # It is NOT used as the final bag ID.
+    trigger_seq = 0
+
+    # ── Pairing state ─────────────────────────────────────────────────────────
+
+    pending_trigger = None
+
+    pairing_lock = threading.Lock()
+
+    # ── Camera ─────────────────────────────────────────────────────────────────
+
+    with CameraCapture(
+        camera_index=eff.CAMERA_INDEX,
+        save_dir=str(save_dir),
+    ) as camera:
+
+        # ── Barcode handler ──────────────────────────────────────────────────
+
+        def on_barcode_scan(
+            ts: float,
+            barcode: str,
+        ):
+            """
+            Handle a barcode scan.
+
+            Case 1:
+                Laser trigger is waiting.
+                → attach barcode to that trigger.
+                → laser path captures the photo.
+
+            Case 2:
+                No laser trigger is waiting.
+                → barcode is a fallback.
+                → capture immediately.
+
+            The barcode itself is the real bag ID.
+            """
+
+            nonlocal pending_trigger
+
+            barcode = str(
+                barcode
+            ).strip()
+
+            if not barcode:
+                return
+
+            print(
+                f"Barcode scanned: {barcode}"
             )
+
+            activity.add(
+                "scan",
+                ts,
+                barcode,
+            )
+
+            # ── Look up bag ──────────────────────────────────────────────────
+
+            bag = bag_lookup.get(
+                barcode
+            )
+
+            if bag is None:
+
+                print(
+                    f"  UNKNOWN BAG ID: {barcode}"
+                )
+
+                activity.add(
+                    "scan_unknown",
+                    ts,
+                    barcode,
+                )
+
+                return
+
+            # IMPORTANT:
+            # This is the canonical ID used everywhere else.
+            bag_id = bag["bag_id"]
+
+            flight_number = bag.get(
+                "flight_number",
+                "",
+            )
+
+            destination = bag.get(
+                "destination",
+                "",
+            )
+
+            print(
+                f"  Bag {bag_id} → "
+                f"{flight_number or '?'}"
+                f"{' → ' + destination if destination else ''}"
+            )
+
+            # ── Try to pair with laser ──────────────────────────────────────
+
+            with pairing_lock:
+
+                trigger = pending_trigger
+
+                if trigger is not None:
+
+                    pending_trigger = None
+
+            if trigger is not None:
+
+                # The barcode is now the REAL event ID.
+                trigger["bag_id"] = bag_id
+                trigger["barcode"] = barcode
+                trigger["flight_number"] = flight_number
+                trigger["destination"] = destination
+                trigger["barcode_ts"] = ts
+
+                trigger["event"].set()
+
+                print(
+                    f"  Paired with laser trigger "
+                    f"{trigger['temporary_id']}"
+                )
+
+                print(
+                    f"  Real bag ID: {bag_id}"
+                )
+
+                return
+
+            # ── No laser waiting → barcode fallback ─────────────────────────
+
+            print(
+                "  No laser waiting — "
+                "barcode fallback capture"
+            )
+
+            path = camera.capture(
+                label=bag_id
+            )
+
+            print(
+                f"  "
+                f"{'Saved ' + str(path) if path else 'Capture failed'}"
+            )
+
+            # IMPORTANT:
+            # Use the actual bag ID as the event ID.
             log.record(
-                id=bag_id, status=resolution.status,
-                tag_id=resolution.tag_id or "",
-                flight_number=resolution.flight_number or "",
-                destination=resolution.destination or "",
-                trigger_source="late-match",
+                id=bag_id,
+                status="matched",
+                trigger_source="barcode",
+                trigger_raw=barcode,
+                capture_ok=bool(path),
+                capture_path=str(path)
+                if path
+                else "",
+                tag_id=barcode,
+                flight_number=flight_number,
+                destination=destination,
             )
 
-        pairer.on_late_match = on_late_match
-
-        def on_unmatched_scan(ts: float, barcode: str):
-            nonlocal seq
-            seq += 1
-            bag_id = f"scan_{run_id}_{seq}"
-            # The sensor never claimed this scan within PAIR_WINDOW seconds —
-            # most likely it failed to trigger for this bag. Fall back to
-            # taking a photo right now so the bag still gets a picture on
-            # the board, then route it to its CAN using the barcode's flight
-            # info. Because this only fires PAIR_WINDOW seconds after the
-            # scan, two barcode scans closer together than that will overlap
-            # here — space scans further apart than PAIR_WINDOW (Settings
-            # page → Timing) if you're relying on this path routinely.
-            flight        = flight_lookup(barcode)
-            flight_number = flight.get("flight_number")
-            destination   = flight.get("destination")
-            path = camera.capture(label=barcode)
-            print(f"Unmatched scan (no bag nearby): {barcode} "
-                  f"({flight_number or '?'}) — "
-                  f"{'photo captured' if path else 'capture failed'}")
-            log.record(
-                id=bag_id, status="unmatched_scan", tag_id=barcode,
-                trigger_source="barcode-fallback", trigger_raw=barcode,
-                capture_ok=bool(path), capture_path=str(path) if path else "",
-                flight_number=flight_number or "", destination=destination or "",
-            )
             live.add(
-                id=bag_id, timestamp=_iso(ts), status="unmatched_scan",
-                photo_path=str(path) if path else None,
-                flight_number=flight_number, destination=destination,
+                id=bag_id,
+                timestamp=_iso(ts),
+                status="matched",
+                photo_path=path.as_posix()
+                if path
+                else None,
+                flight_number=flight_number,
+                destination=destination,
             )
 
-        def on_raw_scan(ts: float, barcode: str):
-            activity.add("scan", ts, barcode)
+            print(
+                f"  Added to board: #{bag_id}"
+            )
 
-        listener = BarcodeListener(pairer, on_unmatched=on_unmatched_scan, on_scan=on_raw_scan)
+        # ── Barcode listener ──────────────────────────────────────────────────
+
+        listener = BarcodeListener(
+            on_scan=on_barcode_scan,
+        )
+
         listener.start()
-        print("Barcode scanner subsystem started — always on, system-wide.")
 
-        print(f"DMMS running — serial port {eff.SERIAL_PORT}, camera index {eff.CAMERA_INDEX}. Ctrl+C to stop.")
+        print(
+            "Barcode scanner subsystem started — "
+            "always on, system-wide."
+        )
+
+        print(
+            "Laser + barcode pairing enabled."
+        )
+
+        print(
+            f"  Laser waits up to "
+            f"{eff.PAIR_WINDOW}s for barcode."
+        )
+
+        print(
+            "  Barcode without laser → "
+            "immediate fallback capture."
+        )
+
+        print(
+            f"DMMS running — serial port "
+            f"{eff.SERIAL_PORT}, "
+            f"camera index {eff.CAMERA_INDEX}. "
+            f"Ctrl+C to stop."
+        )
+
+        # ── Sensor trigger loop ──────────────────────────────────────────────
+
         try:
+
             for event in trigger_source.events():
+
                 trigger_ts = time.time()
-                print(f"Trigger: {event.raw}")
-                activity.add("trigger", trigger_ts, event.raw)
 
-                seq += 1
-                bag_id = f"bag_{run_id}_{seq}"
+                print(
+                    f"Trigger: {event.raw}"
+                )
 
-                # bag_id opts this trigger into a late-match second chance —
-                # see on_late_match above and Pairer.resolve_trigger's
-                # docstring. Usual real-world ordering is sensor-then-scan,
-                # so this call very often can't see the matching scan yet
-                # and will say 'manual' here; on_late_match fixes it up a
-                # moment later if a scan does show up in time.
-                resolution = pairer.resolve_trigger(trigger_ts, bag_id=bag_id)
+                activity.add(
+                    "trigger",
+                    trigger_ts,
+                    event.raw,
+                )
 
-                if resolution.tag_id:
-                    print(f"  Barcode: {resolution.tag_id} ({resolution.status})")
+                # Temporary ID only for the period where we do not
+                # yet know the bag ID.
+                trigger_seq += 1
+
+                temporary_id = (
+                    f"trigger_{run_id}_{trigger_seq}"
+                )
+
+                barcode_event = threading.Event()
+
+                trigger_info = {
+                    "temporary_id": temporary_id,
+                    "event": barcode_event,
+
+                    # These become populated when barcode arrives.
+                    "bag_id": None,
+                    "barcode": None,
+                    "flight_number": "",
+                    "destination": "",
+                    "barcode_ts": None,
+                }
+
+                # ── Become the active laser trigger ─────────────────────────
+
+                with pairing_lock:
+
+                    previous = pending_trigger
+
+                    pending_trigger = trigger_info
+
+                if previous is not None:
+
+                    print(
+                        "  Warning: previous laser trigger "
+                        "was still waiting."
+                    )
+
+                # ── Wait for barcode ────────────────────────────────────────
+
+                got_barcode = barcode_event.wait(
+                    timeout=eff.PAIR_WINDOW
+                )
+
+                # ── Take ownership of trigger state ─────────────────────────
+
+                with pairing_lock:
+
+                    if pending_trigger is trigger_info:
+
+                        pending_trigger = None
+
+                # ── Barcode arrived ─────────────────────────────────────────
+
+                if got_barcode:
+
+                    bag_id = trigger_info["bag_id"]
+
+                    barcode = trigger_info["barcode"]
+
+                    flight_number = (
+                        trigger_info["flight_number"]
+                    )
+
+                    destination = (
+                        trigger_info["destination"]
+                    )
+
+                    status = "matched"
+
+                    print(
+                        f"  Barcode: {barcode} "
+                        f"({flight_number or '?'})"
+                    )
+
+                    print(
+                        f"  Using bag ID: {bag_id}"
+                    )
+
+                    capture_label = bag_id
+
+                # ── No barcode ──────────────────────────────────────────────
+
                 else:
-                    print(f"  No barcode match yet ({resolution.status} for now)")
+
+                    barcode = ""
+                    bag_id = ""
+
+                    flight_number = ""
+                    destination = ""
+
+                    status = "manual"
+
+                    print(
+                        f"  No barcode within "
+                        f"{eff.PAIR_WINDOW}s "
+                        f"(manual)"
+                    )
+
+                    # There is no real bag ID yet.
+                    # The temporary trigger ID is ONLY used for
+                    # this unresolved/manual event.
+                    capture_label = event.raw
+
+                # ── Optional camera delay ───────────────────────────────────
 
                 if eff.PHOTO_DELAY > 0:
-                    time.sleep(eff.PHOTO_DELAY)
-                path = camera.capture(label=event.raw)
 
-                print(f"  {'Saved ' + str(path) if path else 'Capture failed'}")
+                    time.sleep(
+                        eff.PHOTO_DELAY
+                    )
+
+                # ── Capture exactly once ────────────────────────────────────
+
+                path = camera.capture(
+                    label=capture_label
+                )
+
+                print(
+                    f"  "
+                    f"{'Saved ' + str(path) if path else 'Capture failed'}"
+                )
+
+                # ── Determine final event ID ────────────────────────────────
+
+                if bag_id:
+
+                    # Barcode was received.
+                    # This is the canonical ID.
+                    final_event_id = bag_id
+
+                else:
+
+                    # No barcode was received.
+                    # There is no way to know the real bag ID yet.
+                    # Keep a temporary/manual ID so the physical trigger
+                    # is still visible on the board.
+                    final_event_id = temporary_id
+
+                # ── Log ─────────────────────────────────────────────────────
 
                 log.record(
-                    id=bag_id, status=resolution.status,
-                    trigger_source=event.source, trigger_raw=event.raw,
-                    capture_ok=bool(path), capture_path=str(path) if path else "",
-                    tag_id=resolution.tag_id or "",
-                    flight_number=resolution.flight_number or "",
-                    destination=resolution.destination or "",
+                    id=final_event_id,
+                    status=status,
+                    trigger_source=event.source,
+                    trigger_raw=event.raw,
+                    capture_ok=bool(path),
+                    capture_path=str(path)
+                    if path
+                    else "",
+                    tag_id=barcode,
+                    flight_number=flight_number,
+                    destination=destination,
                 )
+
+                # ── Live board ──────────────────────────────────────────────
+
                 live.add(
-                    id=bag_id, timestamp=_iso(trigger_ts), status=resolution.status,
-                    photo_path=str(path) if path else None,
-                    flight_number=resolution.flight_number,
-                    destination=resolution.destination,
+                    id=final_event_id,
+                    timestamp=_iso(trigger_ts),
+                    status=status,
+                    photo_path=path.as_posix()
+                    if path
+                    else None,
+                    flight_number=flight_number,
+                    destination=destination,
                 )
+
+                print(
+                    f"  Added to board: "
+                    f"#{final_event_id}"
+                )
+
         except KeyboardInterrupt:
-            print("\nStopped.")
+
+            print(
+                "\nStopped."
+            )
+
         finally:
-            log.close()
+
             listener.stop()
+            log.close()
 
 
 if __name__ == "__main__":

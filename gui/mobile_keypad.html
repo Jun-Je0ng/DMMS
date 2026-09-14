@@ -461,7 +461,16 @@
       try {
         const [events, loaded, dismissed] = await Promise.all([
           dmmsFetchEvents(), dmmsFetchLoaded(),
-          fetch("/api/dismissed").then((r) => r.json()).catch(() => []),
+          // fetch("/api/dismissed").then((r) => r.json()).catch(() => []),
+          fetch("/api/dismissed")
+            .then(async (r) => {
+              if (!r.ok) {
+                throw new Error(`Dismissed fetch failed: ${r.status}`);
+              }
+              return r.json();
+            })
+            .catch(() => []),
+
         ]);
         allEvents        = events;
         loadedRecords    = loaded;
@@ -474,34 +483,108 @@
 
     // ── Gallery ────────────────────────────────────────────────────────────
 
-    function openGallery() {
-      const dismissedIds = new Set(dismissedRecords.map((r) => r.id));
-      const bags         = allEvents.filter((b) => !dismissedIds.has(b.id));
-      const loadedIds    = new Set(loadedRecords.map((r) => r.id));
-      const grid         = el("gallery-grid");
-      grid.innerHTML     = "";
-      el("gallery-title").textContent = `All Bags — ${bags.length}`;
+    // function openGallery() {
+    //   const dismissedIds = new Set(dismissedRecords.map((r) => r.id));
+    //   const bags         = allEvents.filter((b) => !dismissedIds.has(b.id));
+    //   const loadedIds    = new Set(loadedRecords.map((r) => r.id));
+    //   const grid         = el("gallery-grid");
+    //   grid.innerHTML     = "";
+    //   el("gallery-title").textContent = `All Bags — ${bags.length}`;
 
-      if (!bags.length) {
-        grid.innerHTML = `<div class="m-gallery-empty">No bags on the board yet.</div>`;
-      } else {
-        bags.forEach((bag) => {
-          const imgUrl   = dmmsImageUrl(bag.photo_path);
-          const isLoaded = loadedIds.has(bag.id);
-          const cell     = document.createElement("div");
-          cell.className = "m-gallery-cell";
-          cell.innerHTML = `
-            ${imgUrl
-              ? `<img src="${imgUrl}" alt="#${bag._tag}" />`
-              : `<div class="m-cell-no-photo">${CAMERA_SVG}</div>`}
-            <div class="m-cell-tag">#${bag._tag}</div>
-            ${isLoaded ? `<div class="m-cell-check">&#10003;</div>` : ""}`;
-          cell.addEventListener("click", () => openLightbox(bag));
-          grid.appendChild(cell);
+    //   if (!bags.length) {
+    //     grid.innerHTML = `<div class="m-gallery-empty">No bags on the board yet.</div>`;
+    //   } else {
+    //     bags.forEach((bag) => {
+    //       const imgUrl   = dmmsImageUrl(bag.photo_path);
+    //       const isLoaded = loadedIds.has(bag.id);
+    //       const cell     = document.createElement("div");
+    //       cell.className = "m-gallery-cell";
+    //       cell.innerHTML = `
+    //         ${imgUrl
+    //           ? `<img src="${imgUrl}" alt="#${bag._tag}" />`
+    //           : `<div class="m-cell-no-photo">${CAMERA_SVG}</div>`}
+    //         <div class="m-cell-tag">#${bag._tag}</div>
+    //         ${isLoaded ? `<div class="m-cell-check">&#10003;</div>` : ""}`;
+    //       cell.addEventListener("click", () => openLightbox(bag));
+    //       grid.appendChild(cell);
+    //     });
+    //   }
+    //   el("gallery-overlay").hidden = false;
+    // }
+
+    function openGallery() {
+    const dismissedIds = new Set(dismissedRecords.map((r) => r.id));
+    const bags = allEvents.filter((b) => !dismissedIds.has(b.id));
+    const loadedIds = new Set(loadedRecords.map((r) => r.id));
+    const grid = el("gallery-grid");
+
+    grid.innerHTML = "";
+    el("gallery-title").textContent = `All Bags — ${bags.length}`;
+
+    if (!bags.length) {
+      grid.innerHTML = `<div class="m-gallery-empty">No bags on the board yet.</div>`;
+    } else {
+      bags.forEach((bag) => {
+        const imgUrl = dmmsImageUrl(bag.photo_path);
+
+
+        console.log("DMMS gallery image:", {
+          tag: bag._tag,
+          photo_path: bag.photo_path,
+          imageUrl: imgUrl
         });
-      }
-      el("gallery-overlay").hidden = false;
+
+        const isLoaded = loadedIds.has(bag.id);
+
+        const cell = document.createElement("div");
+        cell.className = "m-gallery-cell";
+
+        // Photo / placeholder
+        if (imgUrl) {
+          const img = document.createElement("img");
+          img.src = imgUrl;
+          img.alt = `Bag #${bag._tag}`;
+          img.loading = "lazy";
+          img.decoding = "async";
+
+          // Keep the gallery usable if one image fails.
+          img.addEventListener("error", () => {
+            const placeholder = document.createElement("div");
+            placeholder.className = "m-cell-no-photo";
+            placeholder.innerHTML = CAMERA_SVG;
+            img.replaceWith(placeholder);
+          });
+
+          cell.appendChild(img);
+        } else {
+          const placeholder = document.createElement("div");
+          placeholder.className = "m-cell-no-photo";
+          placeholder.innerHTML = CAMERA_SVG;
+          cell.appendChild(placeholder);
+        }
+
+        // Tag
+        const tag = document.createElement("div");
+        tag.className = "m-cell-tag";
+        tag.textContent = `#${bag._tag}`;
+        cell.appendChild(tag);
+
+        // Loaded check
+        if (isLoaded) {
+          const check = document.createElement("div");
+          check.className = "m-cell-check";
+          check.textContent = "✓";
+          cell.appendChild(check);
+        }
+
+        cell.addEventListener("click", () => openLightbox(bag));
+        grid.appendChild(cell);
+      });
     }
+
+    el("gallery-overlay").hidden = false;
+  }
+
 
     function closeGallery() { el("gallery-overlay").hidden = true; }
 
@@ -535,27 +618,80 @@
     el("btn-gallery").addEventListener("click", openGallery);
     el("btn-lb-back").addEventListener("click", closeLightbox);
 
+    // el("btn-lb-loaded").addEventListener("click", async () => {
+    //   const bag = lightboxBag;
+    //   if (!bag) return;
+    //   const isLoaded = new Set(loadedRecords.map((r) => r.id)).has(bag.id);
+    //   try {
+    //     if (isLoaded) {
+    //       await dmmsUnmarkLoaded(bag.id);
+    //       loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
+    //       dmmsToast(`Bag #${bag._tag} unmarked`, "good");
+    //     } else {
+    //       await dmmsMarkLoaded(bag, "gallery");
+    //       loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
+    //       loadedRecords.push({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag, source: "gallery", loaded_at: new Date().toISOString() });
+    //       dmmsToast(`Bag #${bag._tag} marked loaded`, "good");
+    //     }
+    //     closeLightbox();
+    //     openGallery();
+    //   } catch {
+    //     dmmsToast("Couldn't reach the server — try again", "error");
+    //   }
+    // });
     el("btn-lb-loaded").addEventListener("click", async () => {
-      const bag = lightboxBag;
-      if (!bag) return;
-      const isLoaded = new Set(loadedRecords.map((r) => r.id)).has(bag.id);
-      try {
-        if (isLoaded) {
-          await dmmsUnmarkLoaded(bag.id);
-          loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
-          dmmsToast(`Bag #${bag._tag} unmarked`, "good");
-        } else {
-          await dmmsMarkLoaded(bag, "gallery");
-          loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
-          loadedRecords.push({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag, source: "gallery", loaded_at: new Date().toISOString() });
-          dmmsToast(`Bag #${bag._tag} marked loaded`, "good");
-        }
-        closeLightbox();
-        openGallery();
-      } catch {
-        dmmsToast("Couldn't reach the server — try again", "error");
+    const bag = lightboxBag;
+    if (!bag) return;
+
+    const loadBtn = el("btn-lb-loaded");
+
+    if (loadBtn.disabled) return;
+
+    const isLoaded = new Set(
+      loadedRecords.map((r) => r.id)
+    ).has(bag.id);
+
+    loadBtn.disabled = true;
+
+    try {
+      if (isLoaded) {
+        await dmmsUnmarkLoaded(bag.id);
+
+        loadedRecords = loadedRecords.filter(
+          (r) => r.id !== bag.id
+        );
+
+        dmmsToast(`Bag #${bag._tag} unmarked`, "good");
+      } else {
+        await dmmsMarkLoaded(bag, "gallery");
+
+        loadedRecords = loadedRecords.filter(
+          (r) => r.id !== bag.id
+        );
+
+        loadedRecords.push({
+          id: bag.id,
+          flight_number: bag.flight_number,
+          tag: bag._tag,
+          source: "gallery",
+          loaded_at: new Date().toISOString()
+        });
+
+        dmmsToast(`Bag #${bag._tag} marked loaded`, "good");
       }
-    });
+
+      closeLightbox();
+      openGallery();
+
+    } catch (err) {
+      console.error("Gallery load/unload failed:", err);
+      dmmsToast("Couldn't reach the server — try again", "error");
+
+    } finally {
+      loadBtn.disabled = false;
+    }
+  });
+
 
     el("btn-lb-remove").addEventListener("click", () => {
       el("lb-confirm").hidden = false;
@@ -567,11 +703,25 @@
       const bag = lightboxBag;
       if (!bag) return;
       try {
-        await fetch("/api/dismissed/add", {
-          method:  "POST",
+        // await fetch("/api/dismissed/add", {
+        //   method:  "POST",
+        //   headers: { "Content-Type": "application/json" },
+        //   body:    JSON.stringify({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag }),
+        // });
+        const response = await fetch("/api/dismissed/add", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag }),
+          body: JSON.stringify({
+            id: bag.id,
+            flight_number: bag.flight_number,
+            tag: bag._tag
+          }),
         });
+
+        if (!response.ok) {
+          throw new Error(`Dismiss failed: ${response.status}`);
+        }
+
         dismissedRecords = dismissedRecords.filter((r) => r.id !== bag.id);
         dismissedRecords.push({ id: bag.id });
         closeLightbox();

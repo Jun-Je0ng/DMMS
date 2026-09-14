@@ -67,6 +67,13 @@ class Pairer:
         self.active_tags:   Dict[str, _ActiveTag]   = {}
         self._open_triggers: Dict[str, float] = {}   # bag_id -> trigger ts, still open for a late scan
         self._lock = threading.Lock()
+        # ── Barcode-first design support ─────────────────────────────────────
+        # _waiting_trigger_ts is set by wait_for_scan() while the sensor loop
+        # is blocking on a barcode.  claim_for_trigger() checks it so the
+        # barcode thread knows whether to take an immediate photo itself (no
+        # sensor waiting) or to wake the blocked sensor loop instead.
+        self._waiting_trigger_ts: Optional[float] = None
+        self._scan_arrived = threading.Event()
 
     def submit_scan(self, ts: float, barcode: str) -> None:
         """Record a scan as it arrives.
@@ -96,6 +103,110 @@ class Pairer:
             resolution = self._resolve_candidates(trig_ts, [(ts, barcode)])
             if self.on_late_match:
                 self.on_late_match(bag_id, resolution)
+
+    def claim_for_trigger(self, ts: float, barcode: str) -> bool:
+        """Barcode-first path: try to route this scan to a waiting sensor trigger.
+
+        Call this instead of submit_scan when the barcode listener should take
+        an immediate photo for unmatched scans.  Returns True if the scan was
+        claimed by a trigger (either a sensor currently blocking on
+        wait_for_scan, or one that already resolved as 'manual' and is still
+        open for a late match) — the sensor path will handle the photo, the
+        caller must NOT take one.  Returns False if no trigger is waiting;
+        the caller should take an immediate photo now.
+
+        Unlike submit_scan, a scan that returns False is NOT added to
+        pending_scans, so a future sensor trigger can't accidentally pair with
+        it and produce a duplicate board entry.
+        """
+        late_target = None
+        with self._lock:
+            # 1. Sensor loop is currently blocking inside wait_for_scan.
+            if (self._waiting_trigger_ts is not None
+                    and abs(ts - self._waiting_trigger_ts) <= self.pair_window):
+                self.pending_scans.append((ts, barcode))
+                self._scan_arrived.set()
+                return True
+
+            # 2. A prior trigger resolved as 'manual' and is still open for a
+            #    late match (see _open_triggers / on_late_match above).
+            open_candidates = [
+                (bag_id, trig_ts)
+                for bag_id, trig_ts in self._open_triggers.items()
+                if abs(ts - trig_ts) <= self.pair_window
+            ]
+            if open_candidates:
+                bag_id, trig_ts = min(open_candidates,
+                                      key=lambda bt: abs(ts - bt[1]))
+                del self._open_triggers[bag_id]
+                late_target = (bag_id, trig_ts)
+            # else: no trigger is waiting → caller takes immediate photo
+
+        if late_target is not None:
+            bag_id, trig_ts = late_target
+            resolution = self._resolve_candidates(trig_ts, [(ts, barcode)])
+            if self.on_late_match:
+                self.on_late_match(bag_id, resolution)
+            return True
+
+        return False  # no trigger claimed this scan
+
+    def wait_for_scan(self, trigger_ts: float, timeout: float,
+                      bag_id: Optional[str] = None) -> Resolution:
+        """Sensor-first path: block up to `timeout` seconds for a matching scan.
+
+        Replaces the old pattern of resolve_trigger() + a fixed sleep before
+        the shutter.  The sensor loop calls this after the trigger fires; it
+        returns as soon as a barcode arrives within pair_window of trigger_ts,
+        or returns Resolution(status='manual') once timeout is reached.
+
+        Pass `bag_id` to opt the trigger into a late-match second chance after
+        this call returns 'manual' (same semantics as resolve_trigger's
+        bag_id parameter — see on_late_match).
+        """
+        import time as _time
+        with self._lock:
+            # Fast path: a scan is already pending from before the trigger.
+            candidates = [p for p in self.pending_scans
+                          if abs(p[0] - trigger_ts) <= self.pair_window]
+            if candidates:
+                for c in candidates:
+                    self.pending_scans.remove(c)
+                return self._resolve_candidates(trigger_ts, candidates)
+
+            # Slow path: register as waiting and block.
+            self._waiting_trigger_ts = trigger_ts
+            self._scan_arrived.clear()
+
+        deadline = _time.monotonic() + timeout
+        try:
+            while True:
+                remaining = deadline - _time.monotonic()
+                if remaining <= 0:
+                    break
+                self._scan_arrived.wait(timeout=min(remaining, 0.05))
+                self._scan_arrived.clear()
+                with self._lock:
+                    candidates = [p for p in self.pending_scans
+                                  if abs(p[0] - trigger_ts) <= self.pair_window]
+                    if candidates:
+                        for c in candidates:
+                            self.pending_scans.remove(c)
+                        self._waiting_trigger_ts = None
+                        return self._resolve_candidates(trigger_ts, candidates)
+        finally:
+            with self._lock:
+                self._waiting_trigger_ts = None
+
+        # Timed out with no scan — manual.  Opt into late-match if bag_id given.
+        if bag_id is not None:
+            with self._lock:
+                self._open_triggers[bag_id] = trigger_ts
+            timer = threading.Timer(self.pair_window,
+                                    self._expire_open_trigger, args=(bag_id,))
+            timer.daemon = True
+            timer.start()
+        return Resolution(status="manual")
 
     def resolve_trigger(self, ts: float, bag_id: Optional[str] = None) -> Resolution:
         """Call once a photo has been captured for the bag detected at `ts`.

@@ -1,79 +1,9 @@
 [
   {
-    "id": "scan_20260914095956_13",
-    "flight_number": "NZ499",
-    "tag": 13,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T10:04:06"
-  },
-  {
-    "id": "bag_20260914095956_6",
-    "flight_number": "NZ499",
-    "tag": 6,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T10:04:26"
-  },
-  {
-    "id": "scan_20260914095956_10",
-    "flight_number": "NZ499",
-    "tag": 10,
-    "source": "board",
-    "loaded_at": "2026-09-14T10:08:35"
-  },
-  {
-    "id": "scan_20260914095956_11",
-    "flight_number": "NZ499",
-    "tag": 11,
-    "source": "board",
-    "loaded_at": "2026-09-14T10:08:37"
-  },
-  {
-    "id": "scan_20260914095956_12",
-    "flight_number": "NZ499",
-    "tag": 12,
-    "source": "board",
-    "loaded_at": "2026-09-14T10:08:41"
-  },
-  {
-    "id": "scan_20260914102401_4",
-    "flight_number": "NZ499",
-    "tag": 4,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T10:25:21"
-  },
-  {
-    "id": "bag_20260914102401_6",
-    "flight_number": "NZ499",
-    "tag": 6,
-    "source": "swipe",
-    "loaded_at": "2026-09-14T10:28:25"
-  },
-  {
-    "id": "scan_20260914102401_9",
-    "flight_number": "NZ499",
-    "tag": 9,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T10:29:34"
-  },
-  {
-    "id": "bag_20260914102401_8",
-    "flight_number": "NZ499",
-    "tag": 8,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T10:29:44"
-  },
-  {
-    "id": "bag_20260914102401_10",
-    "flight_number": null,
-    "tag": 10,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T10:29:58"
-  },
-  {
-    "id": "bag_20260914102401_11",
-    "flight_number": "NZ499",
-    "tag": 11,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T10:30:04"
+    "id": "12345",
+    "flight_number": "VA867",
+    "tag": 2,
+    "source": "keypad",
+    "loaded_at": "2026-09-14T12:54:21"
   }
 ]

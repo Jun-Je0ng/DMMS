@@ -16,7 +16,12 @@
 const _CFG           = window.DMMS_CONFIG || {};
 const IS_LIVE        = true;   // always live — use sim_runner.py for simulation
 const DATA_URL       = "../data/live_events.json";
-const IMAGE_BASE_URL = "../data/";
+const IMAGE_BASE_URL = "../";
+
+function imageUrl(photoPath) {
+  if (!photoPath) return "";
+  return IMAGE_BASE_URL + String(photoPath).replace(/\\/g, "/");
+}
 const LOADED_API_URL = "/api/loaded";
 const ADVANCE_MS          = 2500;
 const LIVE_POLL_MS        = 1500;
@@ -442,7 +447,8 @@ function makeTile(event, { statusChip = null } = {}) {
     img.onload  = () => { img.classList.add("loaded"); if (fallbackIcon) fallbackIcon.style.display = "none"; };
     img.onerror = () => { img.classList.remove("loaded"); if (fallbackIcon) fallbackIcon.style.display = ""; };
     img.dataset.photoPath = event.photo_path;
-    img.src = IMAGE_BASE_URL + event.photo_path;
+    img.src = imageUrl(event.photo_path);
+
     photo.appendChild(img);
   }
 
@@ -561,7 +567,8 @@ function openZoom(event) {
   const sub   = [event.id, formatTime(event.timestamp)].filter(Boolean).join(" · ");
   modal.querySelector(".zoom-modal-title").textContent = `${event.flight_number || "Unknown"} · ${sub}`;
   const img = modal.querySelector(".zoom-modal-img");
-  img.src   = IMAGE_BASE_URL + event.photo_path;
+  img.src   = imageUrl(event.photo_path)
+
   img.alt   = `Snapshot of ${event.id || "bag"}`;
   modal.hidden = false;
 }
@@ -890,6 +897,29 @@ function pollServerLoaded() {
     .catch(() => { /* mobile sync is best-effort — board still works offline */ });
 }
 
+// ── Server-dismissed sync (mobile "Remove from List" → main board) ───────────
+// Bags dismissed on a phone via /api/dismissed/add must also disappear from
+// the kiosk board, just like bags confirmed loaded via pollServerLoaded.
+function pollServerDismissed() {
+  fetch("/api/dismissed")
+    .then((r) => (r.ok ? r.json() : []))
+    .then((records) => {
+      if (!Array.isArray(records)) return;
+      let changed = false;
+      records.forEach((rec) => {
+        const id = rec && rec.id;
+        if (!id || state.dismissed.has(id)) return;
+        state.dismissed.add(id);
+        changed = true;
+      });
+      if (changed) {
+        saveDismissed(state.dismissed);
+        render();
+      }
+    })
+    .catch(() => { /* best-effort — board still works offline */ });
+}
+
 // ── Live settings sync (Settings page → this board, no reload) ──────────────
 // gui/settings.html writes uiScale to gui/settings.json via POST
 // /api/settings. Poll it here so every open board tab (and attention.html)
@@ -1035,15 +1065,20 @@ if (IS_LIVE) {
       saveResetOffset(state.liveResetOffset);
       saveDismissed(state.dismissed);
       saveLoaded(state.loaded);
+      // Clear server-side loaded.json and dismissed.json so mobile pages
+      // see a fresh state too (they can't share our localStorage).
+      fetch("/api/loaded/reset", { method: "POST" }).catch(() => {});
       render();
     });
   }
 
   pollLive();
   pollServerLoaded();
+  pollServerDismissed();
   pollSettings();
   setInterval(pollLive, LIVE_POLL_MS);
   setInterval(pollServerLoaded, LIVE_POLL_MS);
+  setInterval(pollServerDismissed, LIVE_POLL_MS);
   setInterval(pollSettings, LIVE_POLL_MS);
 } else {
   const prevBtn = el("btn-prev");

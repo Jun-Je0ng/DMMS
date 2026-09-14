@@ -233,12 +233,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif self.path == "/api/loaded/reset":
             _write_loaded([])
             _write_dismissed([])
-            # Also delete all captured images so the board starts fresh.
+            # Delete captured images but keep the folder so the camera can
+            # still write new photos immediately after the reset.
             for f in glob.glob(os.path.join(CAPTURES_DIR, "*.jpg")):
                 try:
                     os.remove(f)
                 except OSError:
                     pass
+            os.makedirs(CAPTURES_DIR, exist_ok=True)
             self._json_response(200, {"ok": True})
         else:
             self.send_error(404)

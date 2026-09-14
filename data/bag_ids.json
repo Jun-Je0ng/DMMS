@@ -1,0 +1,15 @@
+[
+    {
+      "bagID": 12345,
+      "flight": "VA867"
+    },
+    {
+      "bagID": 12346,
+      "flight": "QF123"
+    },
+    {
+      "bagID": 12347,
+      "flight": "JQ512"
+    }
+  ]
+  
