@@ -26,8 +26,8 @@ TRIGGER_TOKEN = "Baggage passed"
 # can tell them apart, then saves your pick without editing this file.
 CAMERA_INDEX  = 0
 
-# Seconds to wait after barcode resolution before taking the photo.
-# Covers belt travel time between the scanner and the camera.
+# Seconds to wait after the sensor trigger before taking the photo.
+# Covers belt travel time between the sensor and the camera.
 PHOTO_DELAY   = 0.5
 
 # Pairing window: a scan and a trigger must be within this many seconds of

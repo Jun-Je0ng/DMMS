@@ -8,6 +8,172 @@
 <title>DMMS — Swipe Confirm</title>
 <link rel="stylesheet" href="style.css" />
 <link rel="stylesheet" href="mobile.css" />
+<style>
+/* Critical: prevent display:flex rules from overriding [hidden] attribute */
+[hidden] { display: none !important; }
+
+/* ── Gallery floating button ── */
+.m-gallery-btn {
+  position: fixed; bottom: 88px; left: 16px; z-index: 50;
+  width: 46px; height: 46px; border-radius: 50%; padding: 0;
+  background: rgba(28,28,36,0.94); border: 1px solid rgba(255,255,255,0.16);
+  color: #fff; cursor: pointer; box-shadow: 0 3px 12px rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-gallery-btn svg { width: 20px; height: 20px; }
+.m-gallery-btn:active { opacity: 0.75; }
+
+/* ── Gallery bottom sheet ── */
+.m-gallery-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: flex-end;
+}
+.m-gallery-box {
+  background: #1c1c1e; border-radius: 14px 14px 0 0; width: 100%;
+  max-height: 92dvh; display: flex; flex-direction: column;
+  animation: gbSlideUp .22s cubic-bezier(.4,0,.2,1);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@keyframes gbSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.m-gallery-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+.m-gallery-header span { font-size: 16px; font-weight: 600; color: #fff; }
+.m-gallery-close {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); border: none;
+  color: rgba(255,255,255,0.8); font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-gallery-close:active { opacity: 0.7; }
+
+/* ── 3-column square grid (iPhone Photos style) ── */
+.m-gallery-grid {
+  overflow-y: auto; flex: 1;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+  background: #000; padding: 2px 0;
+}
+.m-gallery-cell {
+  aspect-ratio: 1; position: relative; overflow: hidden;
+  background: #111; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.m-gallery-cell:active { opacity: 0.82; }
+.m-gallery-cell img { width:100%; height:100%; object-fit:cover; display:block; }
+.m-cell-no-photo {
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  background: #1a1a2e; color: rgba(255,255,255,0.18);
+}
+.m-cell-no-photo svg { width: 32%; max-width: 36px; }
+.m-cell-tag {
+  position:absolute; bottom:5px; left:5px;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  color:#fff; font-size:11px; font-weight:700;
+  padding:2px 6px; border-radius:5px; letter-spacing:0.01em;
+}
+.m-cell-check {
+  position:absolute; top:5px; right:5px;
+  width:20px; height:20px; border-radius:50%;
+  background:#22c55e; color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:900;
+}
+.m-gallery-empty {
+  grid-column:1/-1; text-align:center;
+  color:rgba(255,255,255,0.35); padding:48px 24px; font-size:14px;
+  background:#1c1c1e;
+}
+
+/* ── Lightbox (full-screen, iPhone-style) ── */
+.m-lightbox {
+  position:fixed; inset:0; z-index:300;
+  background:#000; display:flex; flex-direction:column;
+}
+.m-lb-topbar {
+  display:flex; align-items:center; gap:8px;
+  padding: calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;
+  background:#111; flex-shrink:0;
+}
+.m-lb-back-btn {
+  width:34px; height:34px; border-radius:50%; padding:0;
+  background:rgba(255,255,255,0.1); border:none; color:#fff;
+  font-size:18px; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-lb-back-btn:active { opacity:0.7; }
+.m-lb-title { flex:1; text-align:center; font-size:17px; font-weight:700; color:#fff; }
+.m-lb-title-spacer { width:34px; flex-shrink:0; }
+
+.m-lb-photo {
+  flex:1; background:#000; overflow:hidden;
+  display:flex; align-items:center; justify-content:center; min-height:0;
+}
+.m-lb-photo img { max-width:100%; max-height:100%; object-fit:contain; display:block; }
+.m-lb-photo-placeholder {
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  color:rgba(255,255,255,0.2);
+}
+.m-lb-photo-placeholder svg { width:64px; height:64px; }
+.m-lb-photo-placeholder span { font-size:13px; }
+
+.m-lb-info {
+  padding:12px 18px 6px; background:#1c1c1e; flex-shrink:0;
+  border-top:0.5px solid rgba(255,255,255,0.08);
+}
+.m-lb-info-tag { font-size:22px; font-weight:800; color:#fff; }
+.m-lb-info-row { font-size:13px; color:rgba(255,255,255,0.48); margin-top:3px; }
+.m-lb-loaded-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  margin-top:8px; padding:4px 12px; border-radius:20px;
+  background:rgba(34,197,94,0.16); color:#22c55e;
+  font-size:12px; font-weight:700;
+}
+
+.m-lb-actions {
+  display:flex; gap:8px; padding:10px 16px;
+  background:#1c1c1e; flex-shrink:0;
+  padding-bottom: calc(env(safe-area-inset-bottom,0px) + 12px);
+}
+.m-lb-primary {
+  flex:3; border:none; border-radius:12px; padding:14px 0;
+  font-size:16px; font-weight:700; cursor:pointer; color:#fff;
+  background:#0a84ff; -webkit-tap-highlight-color:transparent;
+}
+.m-lb-primary.undo { background:#636366; }
+.m-lb-primary:active { opacity:0.8; }
+.m-lb-danger {
+  flex:2; border:none; border-radius:12px; padding:14px 0;
+  font-size:15px; font-weight:600; cursor:pointer; color:#fff;
+  background:#8b0000; -webkit-tap-highlight-color:transparent;
+}
+.m-lb-danger:active { opacity:0.8; }
+
+.m-lb-confirm {
+  background:#2a0e0e; border-top:1px solid rgba(139,0,0,0.5);
+  padding:14px 18px; flex-shrink:0;
+  padding-bottom: calc(env(safe-area-inset-bottom,0px) + 14px);
+}
+.m-lb-confirm p { font-size:13px; color:rgba(255,255,255,0.82); margin:0 0 12px; line-height:1.55; }
+.m-lb-confirm-row { display:flex; gap:8px; }
+.m-lb-cancel {
+  flex:1; border:none; border-radius:10px; padding:12px 0;
+  background:rgba(255,255,255,0.1); color:#fff;
+  font-size:14px; cursor:pointer;
+}
+.m-lb-cancel:active { opacity:0.7; }
+.m-lb-confirm-yes {
+  flex:2; border:none; border-radius:10px; padding:12px 0;
+  background:#8b0000; color:#fff; font-size:14px; font-weight:700; cursor:pointer;
+}
+.m-lb-confirm-yes:active { opacity:0.8; }
+</style>
 </head>
 <body class="dmms-mobile">
 
@@ -75,8 +241,46 @@
         <span class="bar"></span>
         <span id="tray-handle-text">Swipe up to review loaded bags</span>
       </div>
+
+      <!-- Gallery button — only visible on deck screen -->
+      <button class="m-gallery-btn" id="btn-gallery" title="View all bag photos for this flight" hidden>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h2V4H3a2 2 0 0 0-2 2v2h2V6Zm16-2h-2v2h2v2h2V6a2 2 0 0 0-2-2ZM3 18v-2H1v2a2 2 0 0 0 2 2h2v-2H3Zm18 0h-2v2h2a2 2 0 0 0 2-2v-2h-2v2ZM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm10 0H9v8h10V8Zm-3 6H11v-4h3v4Z"/></svg>
+      </button>
     </section>
 
+  </div>
+
+  <!-- ── Gallery bottom sheet ───────────────────────────────────────────── -->
+  <div class="m-gallery-overlay" id="gallery-overlay" hidden>
+    <div class="m-gallery-box">
+      <div class="m-gallery-header">
+        <span id="gallery-title">Photos</span>
+        <button class="m-gallery-close" id="btn-gallery-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="m-gallery-grid" id="gallery-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── Lightbox (full-screen) ─────────────────────────────────────────── -->
+  <div class="m-lightbox" id="lightbox" hidden>
+    <div class="m-lb-topbar">
+      <button class="m-lb-back-btn" id="btn-lb-back">&#8592;</button>
+      <div class="m-lb-title" id="lb-tag-title"></div>
+      <div class="m-lb-title-spacer"></div>
+    </div>
+    <div class="m-lb-photo" id="lightbox-photo"></div>
+    <div class="m-lb-info" id="lightbox-info"></div>
+    <div class="m-lb-actions">
+      <button class="m-lb-primary" id="btn-lb-loaded">Mark as Loaded</button>
+      <button class="m-lb-danger" id="btn-lb-remove">Remove</button>
+    </div>
+    <div class="m-lb-confirm" id="lb-confirm" hidden>
+      <p>Remove this bag from the gallery? This cannot be undone unless the bag is scanned again.</p>
+      <div class="m-lb-confirm-row">
+        <button class="m-lb-cancel" id="btn-lb-cancel">Cancel</button>
+        <button class="m-lb-confirm-yes" id="btn-lb-confirm-yes">Yes, Remove</button>
+      </div>
+    </div>
   </div>
 
   <div class="m-tray-backdrop" id="tray-backdrop"></div>
@@ -89,13 +293,15 @@
   <script src="mobile-common.js"></script>
   <script>
     // ── State ──────────────────────────────────────────────────────────────
-    let flightNumber   = null;
-    let allEvents      = [];
-    let loadedRecords  = [];      // server-side /api/loaded, all flights
-    let pendingDeck     = [];     // bags for this flight, not yet loaded, oldest first
+    let flightNumber    = null;
+    let allEvents       = [];
+    let loadedRecords   = [];      // server-side /api/loaded, all flights
+    let dismissedRecords = [];     // server-side /api/dismissed
+    let pendingDeck     = [];      // bags for this flight, not yet loaded or dismissed, oldest first
     let curIndex        = 0;
     let pollTimer       = null;
-    let busy             = false; // guards against double-tap while a mark/unmark is in flight
+    let busy            = false;   // guards against double-tap while a mark/unmark is in flight
+    let lightboxBag     = null;
 
     const el = (id) => document.getElementById(id);
 
@@ -139,6 +345,7 @@
       el("screen-deck").classList.add("active");
       el("deck-flight-label").textContent = fn;
       el("deck-flight-sub").textContent = "loading…";
+      syncGalleryBtn();
       curIndex = 0;
       refresh(true);
       if (pollTimer) clearInterval(pollTimer);
@@ -153,15 +360,20 @@
       flightInput.value = "";
       btnStart.disabled = true;
       flightInput.focus();
+      syncGalleryBtn();
     });
 
     // ── Data refresh ──────────────────────────────────────────────────────
 
     async function refresh(isInitial) {
       try {
-        const [events, loaded] = await Promise.all([dmmsFetchEvents(), dmmsFetchLoaded()]);
+        const [events, loaded, dismissed] = await Promise.all([
+          dmmsFetchEvents(), dmmsFetchLoaded(),
+          fetch("/api/dismissed").then((r) => r.json()).catch(() => []),
+        ]);
         allEvents = events;
         loadedRecords = loaded;
+        dismissedRecords = Array.isArray(dismissed) ? dismissed : [];
         if (el("screen-entry").classList.contains("active")) renderFlightSuggestions();
         if (flightNumber) rebuildDeck(isInitial);
       } catch (err) {
@@ -173,11 +385,12 @@
     function loadedIdSet() { return new Set(loadedRecords.map((r) => r.id)); }
 
     function rebuildDeck(resetIndex) {
-      const loadedIds = loadedIdSet();
-      const bags = dmmsBagsForFlight(allEvents, flightNumber);
-      const keepId = !resetIndex && pendingDeck[curIndex] ? pendingDeck[curIndex].id : null;
+      const loadedIds    = loadedIdSet();
+      const dismissedIds = new Set(dismissedRecords.map((r) => r.id));
+      const bags         = dmmsBagsForFlight(allEvents, flightNumber);
+      const keepId       = !resetIndex && pendingDeck[curIndex] ? pendingDeck[curIndex].id : null;
 
-      pendingDeck = bags.filter((b) => !loadedIds.has(b.id));
+      pendingDeck = bags.filter((b) => !loadedIds.has(b.id) && !dismissedIds.has(b.id));
 
       if (keepId) {
         const idx = pendingDeck.findIndex((b) => b.id === keepId);
@@ -220,10 +433,10 @@
       el("btn-skip").disabled = !bag || busy;
 
       if (!bag) {
+        const allDone = pendingDeck.length === 0 && loadedRecords.some(r => String(r.flight_number||"").toUpperCase()===flightNumber);
         cardEl.innerHTML = `
           <div class="m-deck-empty">
-            <div class="big">${pendingDeck.length === 0 && loadedRecords.some(r => String(r.flight_number||"").toUpperCase()===flightNumber) ? "🎉" : "🕓"}</div>
-            <div><strong>All caught up</strong></div>
+            <div><strong>${allDone ? "All bags loaded" : "All caught up"}</strong></div>
             <div class="muted">No pending bags for ${flightNumber} right now.</div>
           </div>`;
         return;
@@ -404,6 +617,129 @@
         dmmsToast("Couldn't undo — try again", "error");
         console.error(err);
       }
+    }
+
+    // ── Gallery ───────────────────────────────────────────────────────────
+
+    function galleryBagsForFlight() {
+      const dismissedIds = new Set(dismissedRecords.map((r) => r.id));
+      return dmmsBagsForFlight(allEvents, flightNumber).filter((b) => !dismissedIds.has(b.id));
+    }
+
+    function openGallery() {
+      const bags      = galleryBagsForFlight();
+      const loadedIds = new Set(loadedRecords.map((r) => r.id));
+      const grid      = el("gallery-grid");
+      grid.innerHTML  = "";
+      el("gallery-title").textContent = `${flightNumber} · ${bags.length} bag${bags.length === 1 ? "" : "s"}`;
+
+      if (!bags.length) {
+        grid.innerHTML = `<div class="m-gallery-empty">No bags for ${flightNumber} yet.</div>`;
+      } else {
+        bags.forEach((bag) => {
+          const imgUrl   = dmmsImageUrl(bag.photo_path);
+          const isLoaded = loadedIds.has(bag.id);
+          const cell     = document.createElement("div");
+          cell.className = "m-gallery-cell";
+          cell.innerHTML = `
+            ${imgUrl
+              ? `<img src="${imgUrl}" alt="#${bag._tag}" />`
+              : `<div class="m-cell-no-photo">${CAMERA_SVG}</div>`}
+            <div class="m-cell-tag">#${bag._tag}</div>
+            ${isLoaded ? `<div class="m-cell-check">&#10003;</div>` : ""}`;
+          cell.addEventListener("click", () => openLightbox(bag));
+          grid.appendChild(cell);
+        });
+      }
+      el("gallery-overlay").hidden = false;
+    }
+
+    function closeGallery() { el("gallery-overlay").hidden = true; }
+
+    function openLightbox(bag) {
+      lightboxBag = bag;
+      const loadedIds = new Set(loadedRecords.map((r) => r.id));
+      const isLoaded  = loadedIds.has(bag.id);
+      const imgUrl    = dmmsImageUrl(bag.photo_path);
+
+      el("lb-tag-title").textContent = `#${bag._tag}`;
+
+      el("lightbox-photo").innerHTML = imgUrl
+        ? `<img src="${imgUrl}" alt="#${bag._tag}" />`
+        : `<div class="m-lb-photo-placeholder">${CAMERA_SVG}<span>No photo</span></div>`;
+
+      el("lightbox-info").innerHTML = `
+        <div class="m-lb-info-tag">#${bag._tag}</div>
+        <div class="m-lb-info-row">${[bag.flight_number, bag.destination, dmmsFormatTime(bag.timestamp)].filter(Boolean).join(" · ")}</div>
+        ${isLoaded ? `<div class="m-lb-loaded-pill">&#10003; Loaded</div>` : ""}`;
+
+      const loadBtn = el("btn-lb-loaded");
+      loadBtn.textContent = isLoaded ? "Undo Loaded" : "Mark as Loaded";
+      loadBtn.className   = isLoaded ? "m-lb-primary undo" : "m-lb-primary";
+      el("lb-confirm").hidden = true;
+      el("lightbox").hidden   = false;
+    }
+
+    function closeLightbox() { el("lightbox").hidden = true; lightboxBag = null; }
+
+    el("btn-gallery-close").addEventListener("click", closeGallery);
+    el("btn-gallery").addEventListener("click", openGallery);
+
+    el("btn-lb-back").addEventListener("click", closeLightbox);
+
+    el("btn-lb-loaded").addEventListener("click", async () => {
+      const bag = lightboxBag;
+      if (!bag) return;
+      const isLoaded = new Set(loadedRecords.map((r) => r.id)).has(bag.id);
+      try {
+        if (isLoaded) {
+          await dmmsUnmarkLoaded(bag.id);
+          loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
+          dmmsToast(`Bag #${bag._tag} unmarked`, "good");
+        } else {
+          await dmmsMarkLoaded(bag, "gallery");
+          loadedRecords = loadedRecords.filter((r) => r.id !== bag.id);
+          loadedRecords.push({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag, source: "gallery", loaded_at: new Date().toISOString() });
+          dmmsToast(`Bag #${bag._tag} marked loaded`, "good");
+        }
+        closeLightbox();
+        openGallery();
+        rebuildDeck(false);
+      } catch {
+        dmmsToast("Couldn't reach the server — try again", "error");
+      }
+    });
+
+    el("btn-lb-remove").addEventListener("click", () => {
+      el("lb-confirm").hidden = false;
+    });
+    el("btn-lb-cancel").addEventListener("click", () => {
+      el("lb-confirm").hidden = true;
+    });
+    el("btn-lb-confirm-yes").addEventListener("click", async () => {
+      const bag = lightboxBag;
+      if (!bag) return;
+      try {
+        await fetch("/api/dismissed/add", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ id: bag.id, flight_number: bag.flight_number, tag: bag._tag }),
+        });
+        dismissedRecords = dismissedRecords.filter((r) => r.id !== bag.id);
+        dismissedRecords.push({ id: bag.id });
+        closeLightbox();
+        openGallery();
+        rebuildDeck(false);
+        dmmsToast(`Bag #${bag._tag} removed from list`, "good");
+      } catch {
+        dmmsToast("Couldn't reach the server — try again", "error");
+      }
+    });
+
+    // Show/hide gallery button based on which screen is active
+    function syncGalleryBtn() {
+      const onDeck = el("screen-deck").classList.contains("active");
+      el("btn-gallery").hidden = !onDeck || !flightNumber;
     }
 
     // ── Boot ───────────────────────────────────────────────────────────────

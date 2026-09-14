@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<title>Live Camera Feed — DMMS</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #111;
+    --surface:  #1c1c1c;
+    --border:   #333;
+    --text:     #e8e8e8;
+    --muted:    #888;
+    --accent:   #4a9eff;
+    --radius:   6px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .toolbar-title {
+    font-weight: 600;
+    font-size: 13px;
+    flex: 1;
+  }
+
+  .toolbar label {
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .toolbar select, .toolbar input[type=number] {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+
+  .toolbar select { width: 80px; }
+  .toolbar input[type=number] { width: 60px; }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.live   { background: #4caf50; }
+  .status-dot.error  { background: #e74c3c; }
+
+  .fps-label {
+    color: var(--muted);
+    font-size: 11px;
+    min-width: 50px;
+    text-align: right;
+  }
+
+  /* ── Feed area ── */
+  .feed-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+    position: relative;
+  }
+
+  #feed-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .feed-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--muted);
+  }
+
+  .feed-placeholder svg {
+    width: 48px; height: 48px;
+    opacity: 0.4;
+  }
+
+  .feed-error-msg {
+    font-size: 12px;
+    text-align: center;
+    max-width: 260px;
+    line-height: 1.5;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="status-dot" id="status-dot"></span>
+  <span class="toolbar-title">Live Camera Feed</span>
+  <label>
+    Camera
+    <select id="cam-select"></select>
+  </label>
+  <label>
+    Refresh
+    <input type="number" id="interval-ms" value="200" min="50" max="2000" step="50" />
+    ms
+  </label>
+  <span class="fps-label" id="fps-label"></span>
+</div>
+
+<div class="feed-wrap">
+  <img id="feed-img" alt="Camera feed" style="display:none" />
+  <div class="feed-placeholder" id="placeholder">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M4 5h3l1.5-2h7L17 5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/>
+      <circle cx="12" cy="12" r="3.5"/>
+    </svg>
+    <span class="feed-error-msg" id="placeholder-msg">Loading…</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  const img        = document.getElementById("feed-img");
+  const dot        = document.getElementById("status-dot");
+  const placeholder= document.getElementById("placeholder");
+  const msgEl      = document.getElementById("placeholder-msg");
+  const fpsEl      = document.getElementById("fps-label");
+  const camSelect  = document.getElementById("cam-select");
+  const intervalEl = document.getElementById("interval-ms");
+
+  let cameraIndex  = 0;
+  let intervalMs   = 200;
+  let timer        = null;
+  let lastOkTs     = 0;
+  let frameCount   = 0;
+  let fpsTimer     = null;
+
+  // ── Populate camera index dropdown from /api/cameras ──────────────────
+  fetch("/api/cameras")
+    .then(r => r.json())
+    .then(data => {
+      const cameras = data.cameras || [];
+      if (cameras.length === 0) {
+        // No cameras detected — still let the user try index 0
+        [0,1,2].forEach(i => {
+          const opt = document.createElement("option");
+          opt.value = i;
+          opt.textContent = `Index ${i}`;
+          camSelect.appendChild(opt);
+        });
+      } else {
+        cameras.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c.index;
+          opt.textContent = `${c.index} — ${c.width}×${c.height}`;
+          camSelect.appendChild(opt);
+        });
+      }
+      // Pre-select the index configured in Settings if possible
+      return fetch("/api/settings");
+    })
+    .then(r => r.json())
+    .then(s => {
+      const saved = s && s.CAMERA_INDEX != null ? String(s.CAMERA_INDEX) : null;
+      if (saved !== null) {
+        const opt = camSelect.querySelector(`option[value="${saved}"]`);
+        if (opt) camSelect.value = saved;
+        else {
+          // Index in settings not in detected list — add it and select it
+          const opt2 = document.createElement("option");
+          opt2.value = saved;
+          opt2.textContent = `Index ${saved}`;
+          camSelect.insertBefore(opt2, camSelect.firstChild);
+          camSelect.value = saved;
+        }
+      }
+      cameraIndex = Number(camSelect.value) || 0;
+      startPolling();
+    })
+    .catch(() => {
+      // Fallback: just add 0-3 and start
+      if (!camSelect.options.length) {
+        [0,1,2,3].forEach(i => {
+          const opt = document.createElement("option");
+          opt.value = i;
+          opt.textContent = `Index ${i}`;
+          camSelect.appendChild(opt);
+        });
+      }
+      cameraIndex = 0;
+      startPolling();
+    });
+
+  camSelect.addEventListener("change", () => {
+    cameraIndex = Number(camSelect.value) || 0;
+    restartPolling();
+  });
+
+  intervalEl.addEventListener("change", () => {
+    const v = parseInt(intervalEl.value, 10);
+    if (v >= 50 && v <= 2000) {
+      intervalMs = v;
+      restartPolling();
+    }
+  });
+
+  // ── Polling ────────────────────────────────────────────────────────────
+  function fetchFrame() {
+    const url = `/api/camera-preview?index=${cameraIndex}&t=${Date.now()}`;
+    const probe = new Image();
+    probe.onload = () => {
+      img.src = probe.src;
+      img.style.display = "";
+      placeholder.style.display = "none";
+      dot.className = "status-dot live";
+      lastOkTs = Date.now();
+      frameCount++;
+    };
+    probe.onerror = () => {
+      // Only show error placeholder if we haven't had a good frame recently
+      if (Date.now() - lastOkTs > 2000) {
+        img.style.display = "none";
+        placeholder.style.display = "";
+        msgEl.textContent =
+          "Camera not available at index " + cameraIndex +
+          ".\nIt may be in use by run.py, or the index is wrong.";
+        dot.className = "status-dot error";
+      }
+    };
+    probe.src = url;
+  }
+
+  function startPolling() {
+    if (timer) clearInterval(timer);
+    fetchFrame();
+    timer = setInterval(fetchFrame, intervalMs);
+
+    // FPS counter: measure actual throughput every 2s
+    if (fpsTimer) clearInterval(fpsTimer);
+    frameCount = 0;
+    fpsTimer = setInterval(() => {
+      fpsEl.textContent = (frameCount / 2).toFixed(1) + " fps";
+      frameCount = 0;
+    }, 2000);
+  }
+
+  function restartPolling() {
+    lastOkTs = 0;
+    startPolling();
+  }
+
+  // Stop polling when tab is hidden, resume when visible — avoids pointless
+  // requests while the window is behind another one.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (timer)    clearInterval(timer);
+      if (fpsTimer) clearInterval(fpsTimer);
+    } else {
+      startPolling();
+    }
+  });
+})();
+</script>
+</body>
+</html>

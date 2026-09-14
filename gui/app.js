@@ -863,14 +863,23 @@ function pollServerLoaded() {
   fetch(LOADED_API_URL)
     .then((r) => (r.ok ? r.json() : []))
     .then((records) => {
-      if (!Array.isArray(records) || !records.length) return;
+      if (!Array.isArray(records)) return;
       let changed = false;
       records.forEach((rec) => {
         const id = rec && rec.id;
-        if (!id || state.loaded.has(id)) return;
+        if (!id) return;
+        // Always track as loaded, then ensure it is also dismissed so it
+        // disappears from the board.  We can't skip IDs already in
+        // state.loaded because render() reloads state.dismissed from
+        // localStorage on every call — if the two sets ever drift (e.g.
+        // after a page reload or a failed save) the bag would stay visible
+        // forever since the early-return would prevent re-adding it to
+        // state.dismissed.
         state.loaded.add(id);
-        state.dismissed.add(id);
-        changed = true;
+        if (!state.dismissed.has(id)) {
+          state.dismissed.add(id);
+          changed = true;
+        }
       });
       if (changed) {
         saveLoaded(state.loaded);

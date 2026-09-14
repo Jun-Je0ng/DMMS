@@ -6,6 +6,7 @@ Usage:
 
 Stdlib only, no dependencies. Ctrl+C to stop the server.
 """
+import glob
 import http.server
 import json
 import os
@@ -38,8 +39,13 @@ SETTINGS_JSON = os.path.join(REPO_ROOT, "gui", "settings.json")
 # per-browser localStorage state on the main board so that a phone on
 # the same network can mark a bag loaded and have the kiosk board (and
 # any other phone) see it too. See /api/loaded* below.
-DATA_DIR    = os.path.join(REPO_ROOT, "data")
-LOADED_JSON = os.path.join(DATA_DIR, "loaded.json")
+DATA_DIR      = os.path.join(REPO_ROOT, "data")
+LOADED_JSON   = os.path.join(DATA_DIR, "loaded.json")
+CAPTURES_DIR  = os.path.join(DATA_DIR, "captures")
+
+# Bags the operator has manually dismissed from the mobile gallery
+# (Remove from List). Cleared on Reset Board, just like loaded.json.
+DISMISSED_JSON = os.path.join(DATA_DIR, "dismissed.json")
 
 
 def _read_loaded():
@@ -59,6 +65,25 @@ def _write_loaded(records):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(records, f, indent=2)
     os.replace(tmp, LOADED_JSON)
+
+
+def _read_dismissed():
+    if not os.path.exists(DISMISSED_JSON):
+        return []
+    try:
+        with open(DISMISSED_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _write_dismissed(records):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    tmp = DISMISSED_JSON + f".tmp-{uuid.uuid4().hex}"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2)
+    os.replace(tmp, DISMISSED_JSON)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -129,6 +154,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._serve_json_file(CANS_JSON)
         elif path == "/api/loaded":
             self._serve_json_file(LOADED_JSON)
+        elif path == "/api/dismissed":
+            self._serve_json_file(DISMISSED_JSON)
         elif path == "/api/settings":
             self._serve_json_file(SETTINGS_JSON, default=b"{}")
         elif path == "/api/config-defaults":
@@ -188,8 +215,30 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             records = [r for r in _read_loaded() if r.get("id") != bag_id]
             _write_loaded(records)
             self._json_response(200, {"ok": True, "loaded": records})
+        elif self.path == "/api/dismissed/add":
+            body   = self._read_json_body()
+            bag_id = str(body.get("id", "")).strip()
+            if not bag_id:
+                self._json_response(400, {"error": "missing id"})
+                return
+            records = [r for r in _read_dismissed() if r.get("id") != bag_id]
+            records.append({
+                "id":            bag_id,
+                "flight_number": body.get("flight_number"),
+                "tag":           body.get("tag"),
+                "dismissed_at":  time.strftime("%Y-%m-%dT%H:%M:%S"),
+            })
+            _write_dismissed(records)
+            self._json_response(200, {"ok": True, "dismissed": records})
         elif self.path == "/api/loaded/reset":
             _write_loaded([])
+            _write_dismissed([])
+            # Also delete all captured images so the board starts fresh.
+            for f in glob.glob(os.path.join(CAPTURES_DIR, "*.jpg")):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
             self._json_response(200, {"ok": True})
         else:
             self.send_error(404)
