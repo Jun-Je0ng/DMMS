@@ -7,11 +7,8 @@ from config.settings import settings
 mul_id = settings.get("active_mul")
 mul_cfg = settings.get("mul_settings")[str(mul_id)]
 
-laser_port = mul_cfg["laser_serial_port"]
-barcode_port = mul_cfg["barcode_serial_port"]
 camera_index = mul_cfg["camera_device_index"]
 resolution = mul_cfg["camera_resolution"]
-laser_timeout = mul_cfg["laser_timeout"]
 
 
 def take_photo():

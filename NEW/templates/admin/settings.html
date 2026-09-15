@@ -24,21 +24,51 @@
 
   <div class="page-body">
 
+    <div class="card">
+      <h2 class="card-title">Camera Detection</h2>
+      <p class="muted" style="margin: 0 0 12px; font-size: 12px;">
+        Scans camera indices 0–4 for devices that can be opened. Click a
+        detected index to select it, then preview it below.
+      </p>
+      <div class="actions" style="margin-bottom: 12px;">
+        <button type="button" class="btn" id="btn-detect-cameras">Detect Cameras</button>
+        <button type="button" class="btn" id="btn-preview-camera">Preview Selected Index</button>
+      </div>
+      <div id="camera-list" class="cam-list"></div>
+      <div id="camera-status" class="status-line muted"></div>
+      <div class="preview-wrap" id="preview-wrap" hidden>
+        <img id="camera-preview-img" alt="Camera preview">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Serial Port Scanner</h2>
+      <p class="muted" style="margin: 0 0 12px; font-size: 12px;">
+        Lists COM ports currently connected. Click "Use for Laser" or
+        "Use for Barcode" to fill in that field below.
+      </p>
+      <div class="actions" style="margin-bottom: 12px;">
+        <button type="button" class="btn" id="btn-scan-ports">Scan Serial Ports</button>
+      </div>
+      <div id="ports-list" class="ports-list"></div>
+      <div id="ports-status" class="status-line muted"></div>
+    </div>
+
     <form class="stacked-form" action="/admin/settings/update" method="POST">
 
       <div class="form-field">
         <label>Laser Serial Port</label>
-        <input type="text" name="laser_serial_port" value="{{ cfg.laser_serial_port }}">
+        <input type="text" id="laser_serial_port" name="laser_serial_port" value="{{ cfg.laser_serial_port }}">
       </div>
 
       <div class="form-field">
         <label>Barcode Serial Port</label>
-        <input type="text" name="barcode_serial_port" value="{{ cfg.barcode_serial_port }}">
+        <input type="text" id="barcode_serial_port" name="barcode_serial_port" value="{{ cfg.barcode_serial_port }}">
       </div>
 
       <div class="form-field">
         <label>Camera Device Index</label>
-        <input type="number" name="camera_device_index" value="{{ cfg.camera_device_index }}">
+        <input type="number" id="camera_device_index" name="camera_device_index" value="{{ cfg.camera_device_index }}">
       </div>
 
       <div class="form-field">
@@ -61,5 +91,142 @@
 
   </div>
 </div>
+
+<script>
+(function () {
+
+  // ---- Camera detection / preview -----------------------------------
+
+  var camList = document.getElementById("camera-list");
+  var camStatus = document.getElementById("camera-status");
+  var camIndexInput = document.getElementById("camera_device_index");
+  var previewWrap = document.getElementById("preview-wrap");
+  var previewImg = document.getElementById("camera-preview-img");
+
+  function renderCameras(cameras) {
+    camList.innerHTML = "";
+
+    if (!cameras.length) {
+      camStatus.textContent = "No cameras detected.";
+      return;
+    }
+
+    camStatus.textContent = "Found " + cameras.length +
+      (cameras.length === 1 ? " camera." : " cameras.");
+
+    cameras.forEach(function (cam) {
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "btn cam-row";
+      row.textContent = "Camera index " + cam.index;
+
+      if (String(cam.index) === String(camIndexInput.value)) {
+        row.classList.add("cam-row-active");
+      }
+
+      row.addEventListener("click", function () {
+        camIndexInput.value = cam.index;
+        camList.querySelectorAll(".cam-row").forEach(function (r) {
+          r.classList.remove("cam-row-active");
+        });
+        row.classList.add("cam-row-active");
+      });
+
+      camList.appendChild(row);
+    });
+  }
+
+  document.getElementById("btn-detect-cameras").addEventListener("click", function () {
+    camStatus.textContent = "Scanning…";
+
+    fetch("/api/cameras")
+      .then(function (r) { return r.json(); })
+      .then(function (data) { renderCameras(data.cameras || []); })
+      .catch(function () { camStatus.textContent = "Camera scan failed."; });
+  });
+
+  document.getElementById("btn-preview-camera").addEventListener("click", function () {
+    var index = camIndexInput.value;
+
+    if (index === "") {
+      camStatus.textContent = "Enter or select a camera index first.";
+      return;
+    }
+
+    camStatus.textContent = "Loading preview…";
+    previewWrap.hidden = false;
+    previewImg.src = "/api/camera-preview?index=" + encodeURIComponent(index) + "&t=" + Date.now();
+
+    previewImg.onload = function () {
+      camStatus.textContent = "Preview from index " + index + ".";
+    };
+    previewImg.onerror = function () {
+      camStatus.textContent = "Could not read from camera " + index + ".";
+      previewWrap.hidden = true;
+    };
+  });
+
+  // ---- Serial port scanner -------------------------------------------
+
+  var portsList = document.getElementById("ports-list");
+  var portsStatus = document.getElementById("ports-status");
+  var laserInput = document.getElementById("laser_serial_port");
+  var barcodeInput = document.getElementById("barcode_serial_port");
+
+  function renderPorts(ports) {
+    portsList.innerHTML = "";
+
+    if (!ports.length) {
+      portsStatus.textContent = "No serial ports detected.";
+      return;
+    }
+
+    portsStatus.textContent = "Found " + ports.length +
+      (ports.length === 1 ? " port." : " ports.");
+
+    ports.forEach(function (port) {
+      var row = document.createElement("div");
+      row.className = "port-row";
+
+      var label = document.createElement("span");
+      label.className = "port-label";
+      label.textContent = port.device + (port.description ? " — " + port.description : "");
+      row.appendChild(label);
+
+      var actions = document.createElement("div");
+      actions.className = "actions";
+
+      var laserBtn = document.createElement("button");
+      laserBtn.type = "button";
+      laserBtn.className = "btn";
+      laserBtn.textContent = "Use for Laser";
+      laserBtn.addEventListener("click", function () { laserInput.value = port.device; });
+
+      var barcodeBtn = document.createElement("button");
+      barcodeBtn.type = "button";
+      barcodeBtn.className = "btn";
+      barcodeBtn.textContent = "Use for Barcode";
+      barcodeBtn.addEventListener("click", function () { barcodeInput.value = port.device; });
+
+      actions.appendChild(laserBtn);
+      actions.appendChild(barcodeBtn);
+      row.appendChild(actions);
+
+      portsList.appendChild(row);
+    });
+  }
+
+  document.getElementById("btn-scan-ports").addEventListener("click", function () {
+    portsStatus.textContent = "Scanning…";
+
+    fetch("/api/serial-ports")
+      .then(function (r) { return r.json(); })
+      .then(function (data) { renderPorts(data.ports || []); })
+      .catch(function () { portsStatus.textContent = "Serial port scan failed."; });
+  });
+
+})();
+</script>
+
 </body>
 </html>

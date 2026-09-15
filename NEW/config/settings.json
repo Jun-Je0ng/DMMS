@@ -1,13 +1,15 @@
 {
     "mul_settings": {
-      "1": {
-        "laser_serial_port": "COM1",
-        "barcode_serial_port": "COM1",
-        "camera_device_index": 0,
-        "camera_resolution": [1280, 720],
-        "laser_timeout": 2.0
-      }
+        "1": {
+            "laser_serial_port": "COM5",
+            "barcode_serial_port": "COM1",
+            "camera_device_index": 1,
+            "camera_resolution": [
+                1280,
+                720
+            ],
+            "laser_timeout": 2.0
+        }
     },
     "active_mul": 1
-  }
-  
+}

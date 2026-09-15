@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, redirect, jsonify
+from flask import Flask, render_template, request, redirect, jsonify, Response
 from database.db import get_connection
 from config.settings import settings
 from datetime import datetime
 from pathlib import Path
 import socket
+import cv2
+import serial.tools.list_ports
 
 
 app = Flask(__name__)
@@ -1313,6 +1315,81 @@ def admin_settings_update():
     settings.save()
 
     return redirect("/admin/settings")
+
+
+# ============================================================
+# ADMIN — CAMERA DETECTION / PREVIEW
+# ============================================================
+# Used by the "Camera Detection" panel on the settings page. Best-effort
+# only: a camera that's slow, busy, or missing at a given index is just
+# skipped rather than blocking the scan or crashing the request.
+
+@app.route("/api/cameras")
+def api_cameras():
+
+    found = []
+
+    for index in range(5):
+
+        cap = cv2.VideoCapture(index)
+
+        try:
+            if cap.isOpened():
+                found.append({"index": index})
+        finally:
+            cap.release()
+
+    return jsonify({"cameras": found})
+
+
+@app.route("/api/camera-preview")
+def api_camera_preview():
+
+    index = request.args.get("index", type=int)
+
+    if index is None:
+        return "Missing index", 400
+
+    cap = cv2.VideoCapture(index)
+
+    try:
+
+        if not cap.isOpened():
+            return f"Camera {index} not available", 404
+
+        ret, frame = cap.read()
+
+        if not ret or frame is None:
+            return f"Failed to read from camera {index}", 500
+
+        ok, buffer = cv2.imencode(".jpg", frame)
+
+        if not ok:
+            return "Failed to encode preview", 500
+
+        return Response(buffer.tobytes(), mimetype="image/jpeg")
+
+    finally:
+        cap.release()
+
+
+# ============================================================
+# ADMIN — SERIAL PORT SCANNER
+# ============================================================
+
+@app.route("/api/serial-ports")
+def api_serial_ports():
+
+    ports = [
+        {
+            "device": p.device,
+            "description": p.description
+        }
+        for p in serial.tools.list_ports.comports()
+    ]
+
+    return jsonify({"ports": ports})
+
 
 # ============================================================
 # ADMIN — RESET BAG ACTIVITY
