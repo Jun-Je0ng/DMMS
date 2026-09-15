@@ -1,64 +1,102 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Manage CAN Assignments</title>
   <link rel="stylesheet" href="/static/styles.css">
-  <style>
-    body { font-family: sans-serif; padding: 2rem; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 0.5rem; border-bottom: 1px solid #444; }
-    select { padding: 0.3rem; }
-    button { padding: 0.4rem 1rem; margin-left: 0.5rem; }
-  </style>
 </head>
 <body>
+<div class="page">
 
-<h1>CAN Assignment</h1>
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>CAN Assignment</h1>
+        <p class="muted">Admin · Manage CANs</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
 
-<table>
-  <tr>
-    <th>CAN ID</th>
-    <th>MUL</th>
-    <th>Flight</th>
-    <th>Save</th>
-  </tr>
+  <div class="page-body">
 
-  {% for can in cans %}
-  <tr>
-    <form action="/admin/cans/update" method="POST">
-      <td>{{ can[0] }}</td>
+    <table>
+      <tr>
+        <th>CAN ID</th>
+        <th>MUL</th>
+        <th>Flight</th>
+        <th>Save</th>
+      </tr>
 
-      <!-- MUL Dropdown -->
-      <td>
-        <select name="mul_id">
-          {% for m in muls %}
-            <option value="{{ m[0] }}" {% if m[0] == can[1] %}selected{% endif %}>
-              {{ m[1] }}
-            </option>
-          {% endfor %}
-        </select>
-      </td>
+      {% for can in cans %}
+      <tr>
+        <form action="/admin/cans/update" method="POST">
+          <td>{{ can[0] }}</td>
 
-      <!-- Flight Dropdown -->
-      <td>
-        <select name="flight_id">
-          {% for f in flights %}
-            <option value="{{ f[0] }}" {% if f[0] == can[2] %}selected{% endif %}>
-              {{ f[1] }} → {{ f[2] }}
-            </option>
-          {% endfor %}
-        </select>
-      </td>
+          <!-- MUL Dropdown -->
+          <td>
+            <select name="mul_id">
+              {% for m in muls %}
+                <option value="{{ m[0] }}" {% if m[0] == can[1] %}selected{% endif %}>
+                  {{ m[1] }}
+                </option>
+              {% endfor %}
+            </select>
+          </td>
 
-      <td>
-        <input type="hidden" name="can_id" value="{{ can[0] }}">
-        <button type="submit">Save</button>
-      </td>
-    </form>
-  </tr>
-  {% endfor %}
-</table>
+          <!-- Flight Dropdown -->
+          <td>
+            <select name="flight_id">
+              {% for f in flights %}
+                <option value="{{ f[0] }}" {% if f[0] == can[2] %}selected{% endif %}>
+                  {{ f[1] }} → {{ f[2] }}
+                </option>
+              {% endfor %}
+            </select>
+          </td>
 
+          <td>
+            <input type="hidden" name="can_id" value="{{ can[0] }}">
+            <button type="submit" class="btn btn-primary">Save</button>
+          </td>
+        </form>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <section class="card" style="max-width: 520px;">
+      <h2 class="card-title">Add CAN</h2>
+
+      <form action="/admin/cans/add" method="POST">
+
+        <div class="form-field">
+          <label for="add-can-mul">MUL</label>
+          <select id="add-can-mul" name="mul_id" required>
+            {% for m in muls %}
+              <option value="{{ m[0] }}">{{ m[1] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="add-can-flight">Flight (optional)</label>
+          <select id="add-can-flight" name="flight_id">
+            <option value="">No flight assigned</option>
+            {% for f in flights %}
+              <option value="{{ f[0] }}">{{ f[1] }} → {{ f[2] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-good">+ Add CAN</button>
+      </form>
+    </section>
+
+  </div>
+</div>
 </body>
 </html>

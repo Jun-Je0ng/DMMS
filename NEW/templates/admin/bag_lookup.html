@@ -1,6 +1,38 @@
-<h1>Bag Lookup</h1>
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bag Lookup</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="page">
 
-<form action="/admin/bag-search" method="POST">
-  <input type="text" name="query" placeholder="Bag ID or Short ID">
-  <button>Search</button>
-</form>
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>Bag Lookup</h1>
+        <p class="muted">Admin · Search a Bag</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
+
+  <div class="page-body">
+
+    <form class="stacked-form" action="/admin/bag-search" method="POST" style="flex-direction: row; align-items: flex-end; gap: 10px; max-width: 520px;">
+      <div class="form-field" style="flex: 1; margin-bottom: 0;">
+        <label for="query">Bag ID or Short ID</label>
+        <input type="text" id="query" name="query" placeholder="Bag ID or Short ID">
+      </div>
+      <button class="btn btn-primary">Search</button>
+    </form>
+
+  </div>
+</div>
+</body>
+</html>

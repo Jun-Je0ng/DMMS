@@ -1,11 +1,34 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, jsonify
 from database.db import get_connection
 from config.settings import settings
 from datetime import datetime
 from pathlib import Path
+import socket
 
 
 app = Flask(__name__)
+
+SERVER_PORT = 5000
+
+
+def get_lan_ip():
+    """
+    Best-effort LAN IP for this machine, so a QR code can point a phone
+    at this server regardless of which network it's plugged into.
+
+    Opens a UDP "connection" to a public address without sending any
+    data — this just makes the OS pick the outbound interface/IP it
+    would use, which is normally the LAN IP. Falls back to localhost
+    if there's no network at all (e.g. offline dev machine).
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
 
 
 
@@ -30,24 +53,32 @@ def main_dashboard():
     cur = conn.cursor()
 
     # --------------------------------------------------------
-    # Flights
+    # CANs — only CANs that currently have a flight assigned.
+    # A flight with no CAN assignment has nowhere to be shown,
+    # so it is left out of the board entirely.
     # --------------------------------------------------------
 
     cur.execute("""
         SELECT
-            flight_id,
-            flight_number,
-            destination,
-            gate_number,
-            departure_time
-        FROM flights
-        ORDER BY departure_time ASC
+            c.can_id,
+            c.mul_id,
+            c.flight_id,
+            f.flight_number,
+            f.destination,
+            f.gate_number,
+            f.departure_time
+        FROM cans c
+        JOIN flights f
+            ON f.flight_id = c.flight_id
+        WHERE c.flight_id IS NOT NULL
+        ORDER BY f.departure_time ASC
     """)
 
-    flights = cur.fetchall()
+    cans = cur.fetchall()
 
     # --------------------------------------------------------
-    # Bags + status
+    # Bags + status, matched to the CAN that handles their
+    # flight/MUL combination.
     # --------------------------------------------------------
 
     cur.execute("""
@@ -58,8 +89,12 @@ def main_dashboard():
             b.photo_path,
             b.flight_id,
             b.mul_id,
-            s.status
+            s.status,
+            c.can_id
         FROM bags b
+        JOIN cans c
+            ON c.flight_id = b.flight_id
+            AND c.mul_id = b.mul_id
         LEFT JOIN bag_status s
             ON b.bag_id = s.bag_id
         WHERE s.status IS NULL
@@ -67,40 +102,38 @@ def main_dashboard():
         ORDER BY b.scanned_at DESC
     """)
 
-
-
     bags = cur.fetchall()
 
     # --------------------------------------------------------
-    # Build flight → bags mapping
+    # Build CAN → bags mapping
     # --------------------------------------------------------
 
-    flight_map = {}
+    can_map = {}
 
-    for f in flights:
-        fid = f[0]
+    for c in cans:
+        can_id = c[0]
 
-        flight_map[fid] = {
-            "flight_id": fid,
-            "flight_number": f[1],
-            "destination": f[2],
-            "gate_number": f[3],
-            "departure_time": f[4],
+        can_map[can_id] = {
+            "can_id": can_id,
+            "mul_id": c[1],
+            "flight_id": c[2],
+            "flight_number": c[3],
+            "destination": c[4],
+            "gate_number": c[5],
+            "departure_time": c[6],
             "bags": []
         }
 
-    for fid in flight_map:
+    for can_id in can_map:
 
         cur.execute("""
             SELECT COUNT(*)
-            FROM bags b
-            JOIN bag_status s
-                ON b.bag_id = s.bag_id
-            WHERE b.flight_id = ?
+            FROM bag_status s
+            WHERE s.can_id = ?
             AND s.status = 'loaded'
-        """, (fid,))
+        """, (can_id,))
 
-        flight_map[fid]["in_can"] = cur.fetchone()[0]
+        can_map[can_id]["in_can"] = cur.fetchone()[0]
 
     for b in bags:
         (
@@ -110,11 +143,12 @@ def main_dashboard():
             photo_path,
             flight_id,
             mul_id,
-            status
+            status,
+            can_id
         ) = b
 
-        if flight_id in flight_map:
-            flight_map[flight_id]["bags"].append({
+        if can_id in can_map:
+            can_map[can_id]["bags"].append({
                 "bag_id": bag_id,
                 "short_id": short_id,
                 "barcode": barcode,
@@ -156,7 +190,7 @@ def main_dashboard():
 
     return render_template(
         "main_dashboard.html",
-        flights=list(flight_map.values()),
+        cans=list(can_map.values()),
         stats={
             "total_scanned": total_scanned,
             "loaded": loaded,
@@ -174,7 +208,43 @@ def worker_dashboard(mul_id):
     conn = get_connection()
     cur = conn.cursor()
 
+    # --------------------------------------------------------
+    # Optional filters from the side menu (CAN) and the short-ID
+    # search box at the top of the page.
+    # --------------------------------------------------------
+
+    can_id_raw = request.args.get("can_id", "").strip()
+    can_id = int(can_id_raw) if can_id_raw else None
+
+    short_id_raw = request.args.get("short_id", "").strip()
+    short_id = int(short_id_raw) if short_id_raw else None
+
+    # --------------------------------------------------------
+    # CANs for this MUL — powers the side menu so a worker can
+    # narrow the view down to just the CAN/flight they're loading.
+    # --------------------------------------------------------
+
     cur.execute("""
+        SELECT
+            c.can_id,
+            c.flight_id,
+            f.flight_number,
+            f.destination
+        FROM cans c
+        LEFT JOIN flights f
+            ON f.flight_id = c.flight_id
+        WHERE c.mul_id = ?
+        ORDER BY c.can_id ASC
+    """, (mul_id,))
+
+    cans = cur.fetchall()
+
+    # --------------------------------------------------------
+    # Bags — filtered to the selected CAN and/or short ID
+    # when the worker has picked one.
+    # --------------------------------------------------------
+
+    query = """
         SELECT
             b.bag_id,
             b.short_id,
@@ -202,18 +272,69 @@ def worker_dashboard(mul_id):
               s.status IS NULL
               OR s.status != 'loaded'
           )
+    """
 
-        ORDER BY b.scanned_at DESC
-    """, (mul_id,))
+    params = [mul_id]
+
+    if can_id is not None:
+        query += " AND c.can_id = ?"
+        params.append(can_id)
+
+    if short_id is not None:
+        query += " AND b.short_id = ?"
+        params.append(short_id)
+
+    query += " ORDER BY b.scanned_at DESC"
+
+    cur.execute(query, params)
 
     bags = cur.fetchall()
+
+    # --------------------------------------------------------
+    # Loaded bags for the selected CAN — lets a worker reverse a
+    # wrong confirmation. Most recent first. Only fetched when a
+    # CAN is actually selected (it's meaningless for "All CANs").
+    # --------------------------------------------------------
+
+    loaded_bags = []
+
+    if can_id is not None:
+
+        cur.execute("""
+            SELECT
+                b.bag_id,
+                b.short_id,
+                f.flight_number,
+                f.destination,
+                s.loaded_at,
+                b.photo_path
+            FROM bags b
+
+            JOIN bag_status s
+                ON b.bag_id = s.bag_id
+
+            LEFT JOIN flights f
+                ON b.flight_id = f.flight_id
+
+            WHERE b.mul_id = ?
+              AND s.status = 'loaded'
+              AND s.can_id = ?
+
+            ORDER BY s.loaded_at DESC
+        """, (mul_id, can_id))
+
+        loaded_bags = cur.fetchall()
 
     conn.close()
 
     return render_template(
         "worker_dashboard.html",
         bags=bags,
-        mul_id=mul_id
+        mul_id=mul_id,
+        cans=cans,
+        selected_can_id=can_id,
+        short_id_query=short_id_raw,
+        loaded_bags=loaded_bags
     )
 
 
@@ -226,6 +347,10 @@ def worker_load():
 
     bag_id = int(request.form["bag_id"])
     mul_id = int(request.form["mul_id"])
+
+    # Preserve whichever CAN the worker had selected, so confirming a
+    # load doesn't bounce them back out to the unfiltered "All CANs" view.
+    can_id_raw = request.form.get("can_id", "").strip()
 
     # TODO: replace with actual authenticated user
     user_id = 1
@@ -317,6 +442,76 @@ def worker_load():
 
     finally:
         conn.close()
+
+    if can_id_raw:
+        return redirect(f"/worker/{mul_id}?can_id={can_id_raw}")
+
+    return redirect(f"/worker/{mul_id}")
+
+
+# ============================================================
+# UNDO LOAD
+# ============================================================
+# Lets a worker reverse a bag they confirmed by mistake — puts it
+# back to "scanned" so it reappears in the loading list instead of
+# staying stuck as "loaded" into the wrong CAN.
+
+@app.route("/worker/undo-load", methods=["POST"])
+def worker_undo_load():
+
+    bag_id = int(request.form["bag_id"])
+    mul_id = int(request.form["mul_id"])
+    can_id_raw = request.form.get("can_id", "").strip()
+
+    # TODO: replace with actual authenticated user
+    user_id = 1
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute("""
+            UPDATE bag_status
+            SET
+                status = 'scanned',
+                loaded_by = NULL,
+                loaded_at = NULL,
+                can_id = NULL
+            WHERE bag_id = ?
+        """, (bag_id,))
+
+        cur.execute("""
+            INSERT INTO bag_events (
+                bag_id,
+                event_type,
+                user_id,
+                timestamp,
+                details
+            )
+            VALUES (
+                ?,
+                'unloaded',
+                ?,
+                strftime('%s', 'now'),
+                'Load reversed by worker'
+            )
+        """, (
+            bag_id,
+            user_id
+        ))
+
+        conn.commit()
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+    if can_id_raw:
+        return redirect(f"/worker/{mul_id}?can_id={can_id_raw}")
 
     return redirect(f"/worker/{mul_id}")
 
@@ -869,6 +1064,46 @@ def admin_cans_update():
 
 
 # ============================================================
+# ADMIN — ADD CAN
+# ============================================================
+
+@app.route("/admin/cans/add", methods=["POST"])
+def admin_cans_add():
+
+    mul_id = int(request.form["mul_id"])
+
+    flight_id = request.form.get("flight_id", "").strip()
+    flight_id = int(flight_id) if flight_id else None
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+
+        cur.execute("""
+            INSERT INTO cans (
+                mul_id,
+                flight_id
+            )
+            VALUES (?, ?)
+        """, (
+            mul_id,
+            flight_id
+        ))
+
+        conn.commit()
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+    return redirect("/admin/cans")
+
+
+# ============================================================
 # ADMIN — MULS
 # ============================================================
 
@@ -1255,12 +1490,27 @@ def reset_bag_activity():
 
 
 # ============================================================
+# SERVER INFO (for the "Scan for Worker View" QR code)
+# ============================================================
+
+@app.route("/api/server-info")
+def api_server_info():
+    return jsonify({
+        "lan_ip": get_lan_ip(),
+        "port": SERVER_PORT
+    })
+
+
+# ============================================================
 # START SERVER
 # ============================================================
 
 if __name__ == "__main__":
     app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True
+        # 0.0.0.0 (not 127.0.0.1) so phones on the same network can
+        # actually reach this server — required for the worker QR code
+        # to work from another device.
+        host="0.0.0.0",
+        port=SERVER_PORT,
+        debug=False
     )

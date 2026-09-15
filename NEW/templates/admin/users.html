@@ -1,15 +1,46 @@
-<h1>Users</h1>
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Users</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="page">
 
-<table>
-  <tr><th>ID</th><th>Name</th><th>Type</th><th>Actions</th></tr>
-  {% for u in users %}
-  <tr>
-    <td>{{ u[0] }}</td>
-    <td>{{ u[1] }}</td>
-    <td>{{ u[2] }}</td>
-    <td><a href="/admin/users/edit/{{ u[0] }}">Edit</a></td>
-  </tr>
-  {% endfor %}
-</table>
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>Users</h1>
+        <p class="muted">Admin · Manage Users</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
 
-<a href="/admin/users/add">Add User</a>
+  <div class="page-body">
+
+    <div class="page-header">
+      <a href="/admin/users/add" class="btn btn-good">+ Add User</a>
+    </div>
+
+    <table>
+      <tr><th>ID</th><th>Name</th><th>Type</th><th>Actions</th></tr>
+      {% for u in users %}
+      <tr>
+        <td>{{ u[0] }}</td>
+        <td>{{ u[1] }}</td>
+        <td>{{ u[2] }}</td>
+        <td><a href="/admin/users/edit/{{ u[0] }}" class="btn btn-primary">Edit</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+
+  </div>
+</div>
+</body>
+</html>

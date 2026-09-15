@@ -14,6 +14,13 @@
   <header class="topbar">
 
     <div class="brand">
+      <img
+        src="/static\Generated image_ SAAS Airport Automation Logo (1).png"
+        alt="SaaS Logo"
+        class="brand-logo"
+        style="width: 100px; height: 100px;"
+      />
+      
       <div class="brand-text">
         <h1>MUL Baggage Routing</h1>
         <p class="muted">
@@ -53,6 +60,20 @@
 
     </div>
 
+    <!-- <div class="topbar-nav">
+      <a class="btn btn-primary" href="/worker/1">Worker View</a>
+      <a class="btn btn-warning" href="/attention">Needs Attention</a>
+      <a class="btn" href="/admin">Admin Dashboard</a>
+      <button
+        class="btn"
+        id="btn-worker-qr"
+        data-mul-id="1"
+        title="Show a QR code a phone can scan to open the Worker View"
+      >
+        Worker QR
+      </button>
+    </div> -->
+
     <div class="live-clock-wrap">
       <span class="live-clock" id="live-clock">
         --:--:--
@@ -70,68 +91,71 @@
 
     <div class="quadrants">
 
-      {% for flight in flights %}
+      {% for can in cans %}
 
         <section class="quadrant">
 
           <header class="quadrant-header">
 
-            <h2>
-              {{ flight.flight_number }}
-              —
-              {{ flight.destination }}
-            </h2>
+            <p class="quadrant-can">CAN {{ can.can_id }}</p>
 
-            <p class="muted">
-              Gate {{ flight.gate_number }}
-              ·
-              Departs {{ flight.departure_time }}
-              ·
-              <strong>{{ flight.in_can }} bags in CAN</strong>
+            <p class="quadrant-flight">{{ can.flight_number }}</p>
+
+            <p class="quadrant-line">{{ can.destination }}</p>
+
+            <p class="quadrant-time">{{ can.departure_time.split('T')[-1].split(' ')[-1] }}</p>
+
+            <p class="quadrant-line">Gate {{ can.gate_number }}</p>
+
+            <p class="quadrant-line">
+              <strong>{{ can.in_can }} bags in CAN</strong>
             </p>
-            
 
           </header>
 
 
-          <div class="bag-grid">
+          <div class="quadrant-content">
 
-            {% for bag in flight.bags %}
+            <div class="bag-grid">
 
-              <article class="bag-tile bag-status-{{ bag.status }}">
+              {% for bag in can.bags %}
 
-                {% if bag.photo_path %}
-                  <img
-                    src="/{{ bag.photo_path }}"
-                    alt="Bag {{ bag.short_id }}"
-                    class="bag-photo"
-                  />
-                {% endif %}
+                <article class="bag-tile bag-status-{{ bag.status }}">
 
-                <div class="bag-meta">
+                  {% if bag.photo_path %}
+                    <img
+                      src="/{{ bag.photo_path }}"
+                      alt="Bag {{ bag.short_id }}"
+                      class="bag-photo"
+                    />
+                  {% endif %}
 
-                  <span class="bag-id">
-                    #{{ bag.short_id }}
-                  </span>
+                  <div class="bag-meta">
 
-                  <span class="bag-status">
-                    {{ bag.status }}
-                  </span>
+                    <span class="bag-id">
+                      #{{ bag.short_id }}
+                    </span>
 
-                </div>
+                    <span class="bag-status">
+                      {{ bag.status }}
+                    </span>
 
-              </article>
+                  </div>
 
-            {% endfor %}
+                </article>
+
+              {% endfor %}
 
 
-            {% if flight.bags|length == 0 %}
+              {% if can.bags|length == 0 %}
 
-              <p class="muted">
-                No bags scanned for this flight yet.
-              </p>
+                <p class="muted">
+                  No bags scanned for this CAN yet.
+                </p>
 
-            {% endif %}
+              {% endif %}
+
+            </div>
 
           </div>
 
@@ -139,17 +163,59 @@
 
       {% endfor %}
 
+
+      {% if cans|length == 0 %}
+
+        <p class="empty-state">
+          No CANs currently have a flight assigned.
+        </p>
+
+      {% endif %}
+
     </div>
 
   </main>
 
 
   <footer class="footbar">
-    <span class="muted">
-      Live board · auto-refresh
-    </span>
+    <div class="topbar-nav">
+      <a class="btn btn-primary" href="/worker/1">Worker View</a>
+      <a class="btn btn-warning" href="/attention">Needs Attention</a>
+      <a class="btn" href="/admin">Admin Dashboard</a>
+      <button
+        class="btn"
+        id="btn-worker-qr"
+        data-mul-id="1"
+        title="Show a QR code a phone can scan to open the Worker View"
+      >
+        Worker QR
+      </button>
+    </div>
+
   </footer>
 
+</div>
+
+<!-- ── Worker QR modal ──────────────────────────────────────────────────
+     The server's LAN address changes depending on which network it's
+     plugged into, so instead of a fixed URL, this reads the address the
+     server is actually bound to right now (GET /api/server-info) and
+     renders it as a QR code a phone camera can scan straight into the
+     worker view for this MUL — works as long as the phone is on the
+     same network as this computer, whichever network that is. -->
+<div class="qr-modal" id="worker-qr-modal" hidden>
+  <div class="qr-modal-box">
+    <button class="qr-modal-close" id="worker-qr-close" aria-label="Close">&times;</button>
+    <h2>Scan to open Worker View</h2>
+    <p class="muted" id="worker-qr-note">Detecting this computer's network address…</p>
+    <div class="qr-modal-grid">
+      <div class="qr-card">
+        <div class="qr-canvas-wrap"><canvas id="worker-qr-canvas" width="220" height="220"></canvas></div>
+        <div class="qr-card-title">Worker View</div>
+        <div class="qr-card-url mono" id="worker-qr-url">—</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 
@@ -186,6 +252,9 @@
   }, 5000);
 
 </script>
+
+<script src="/static/vendor/qrcode.js"></script>
+<script src="/static/worker-qr.js"></script>
 
 </body>
 </html>

@@ -1,14 +1,45 @@
-<h1>MULs</h1>
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MULs</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="page">
 
-<table>
-  <tr><th>MUL ID</th><th>Name</th><th>Actions</th></tr>
-  {% for m in muls %}
-  <tr>
-    <td>{{ m[0] }}</td>
-    <td>{{ m[1] }}</td>
-    <td><a href="/admin/muls/edit/{{ m[0] }}">Edit</a></td>
-  </tr>
-  {% endfor %}
-</table>
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>MULs</h1>
+        <p class="muted">Admin · Manage MULs</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
 
-<a href="/admin/muls/add">Add MUL</a>
+  <div class="page-body">
+
+    <div class="page-header">
+      <a href="/admin/muls/add" class="btn btn-good">+ Add MUL</a>
+    </div>
+
+    <table>
+      <tr><th>MUL ID</th><th>Name</th><th>Actions</th></tr>
+      {% for m in muls %}
+      <tr>
+        <td>{{ m[0] }}</td>
+        <td>{{ m[1] }}</td>
+        <td><a href="/admin/muls/edit/{{ m[0] }}" class="btn btn-primary">Edit</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+
+  </div>
+</div>
+</body>
+</html>

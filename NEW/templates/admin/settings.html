@@ -1,24 +1,65 @@
-<h1>Settings for MUL {{ mul_id }}</h1>
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings for MUL {{ mul_id }}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="page">
 
-<form action="/admin/settings/update" method="POST">
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>Settings for MUL {{ mul_id }}</h1>
+        <p class="muted">Admin · Hardware Configuration</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
 
-  <label>Laser Serial Port</label>
-  <input type="text" name="laser_serial_port" value="{{ cfg.laser_serial_port }}">
+  <div class="page-body">
 
-  <label>Barcode Serial Port</label>
-  <input type="text" name="barcode_serial_port" value="{{ cfg.barcode_serial_port }}">
+    <form class="stacked-form" action="/admin/settings/update" method="POST">
 
-  <label>Camera Device Index</label>
-  <input type="number" name="camera_device_index" value="{{ cfg.camera_device_index }}">
+      <div class="form-field">
+        <label>Laser Serial Port</label>
+        <input type="text" name="laser_serial_port" value="{{ cfg.laser_serial_port }}">
+      </div>
 
-  <label>Camera Resolution (Width)</label>
-  <input type="number" name="camera_width" value="{{ cfg.camera_resolution[0] }}">
+      <div class="form-field">
+        <label>Barcode Serial Port</label>
+        <input type="text" name="barcode_serial_port" value="{{ cfg.barcode_serial_port }}">
+      </div>
 
-  <label>Camera Resolution (Height)</label>
-  <input type="number" name="camera_height" value="{{ cfg.camera_resolution[1] }}">
+      <div class="form-field">
+        <label>Camera Device Index</label>
+        <input type="number" name="camera_device_index" value="{{ cfg.camera_device_index }}">
+      </div>
 
-  <label>Laser Timeout (seconds)</label>
-  <input type="number" step="0.1" name="laser_timeout" value="{{ cfg.laser_timeout }}">
+      <div class="form-field">
+        <label>Camera Resolution (Width)</label>
+        <input type="number" name="camera_width" value="{{ cfg.camera_resolution[0] }}">
+      </div>
 
-  <button type="submit">Save Settings</button>
-</form>
+      <div class="form-field">
+        <label>Camera Resolution (Height)</label>
+        <input type="number" name="camera_height" value="{{ cfg.camera_resolution[1] }}">
+      </div>
+
+      <div class="form-field">
+        <label>Laser Timeout (seconds)</label>
+        <input type="number" step="0.1" name="laser_timeout" value="{{ cfg.laser_timeout }}">
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">Save Settings</button>
+    </form>
+
+  </div>
+</div>
+</body>
+</html>

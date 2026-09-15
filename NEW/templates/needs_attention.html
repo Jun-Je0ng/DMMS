@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
 
@@ -19,85 +19,27 @@
     href="/static/styles.css"
   />
 
-  <style>
-
-    body {
-      font-family: sans-serif;
-      padding: 1rem;
-    }
-
-    .bag-card {
-      border: 1px solid #444;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      border-radius: 8px;
-    }
-
-    .bag-photo {
-      width: 100%;
-      max-width: 500px;
-      border-radius: 6px;
-    }
-
-    .bag-info {
-      margin-top: 0.75rem;
-      line-height: 1.7;
-    }
-
-    .short-id {
-      font-size: 2rem;
-      font-weight: bold;
-    }
-
-    .barcode {
-      font-family: monospace;
-      word-break: break-all;
-      color: #aaa;
-    }
-
-    .action-btn {
-      width: 100%;
-      padding: 1rem;
-      margin-top: 0.5rem;
-      border-radius: 6px;
-      font-size: 1.1rem;
-      border: none;
-      cursor: pointer;
-    }
-
-    .resolve {
-      background: #28a745;
-      color: white;
-    }
-
-    .reject {
-      background: #dc3545;
-      color: white;
-    }
-
-    .assign {
-      background: #007bff;
-      color: white;
-    }
-
-    select {
-      width: 100%;
-      padding: 0.75rem;
-      margin-top: 0.5rem;
-      font-size: 1rem;
-    }
-
-  </style>
-
 </head>
 
 
 <body>
+<div class="page">
 
-<h1>
-  Bags Needing Attention
-</h1>
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark" style="background: linear-gradient(180deg, var(--warning), var(--serious));"></span>
+      <div class="brand-text">
+        <h1>Needs Attention</h1>
+        <p class="muted">No Can Match · Handle By Hand</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/">Board</a>
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
 
+  <div class="page-body">
 
 {% for bag in bags %}
 
@@ -159,89 +101,94 @@
     </div>
 
 
-    <!-- Resolve -->
+    <div class="bag-card-actions">
 
-    <form
-      action="/attention/resolve"
-      method="POST"
-    >
+      <!-- Resolve -->
 
-      <input
-        type="hidden"
-        name="bag_id"
-        value="{{ bag[0] }}"
-      />
-
-      <button
-        type="submit"
-        class="action-btn resolve"
+      <form
+        action="/attention/resolve"
+        method="POST"
       >
-        Mark as Resolved
-      </button>
 
-    </form>
+        <input
+          type="hidden"
+          name="bag_id"
+          value="{{ bag[0] }}"
+        />
+
+        <button
+          type="submit"
+          class="btn btn-good btn-block"
+        >
+          Mark as Resolved
+        </button>
+
+      </form>
 
 
-    <!-- Reject -->
+      <!-- Reject -->
 
-    <form
-      action="/attention/reject"
-      method="POST"
-    >
-
-      <input
-        type="hidden"
-        name="bag_id"
-        value="{{ bag[0] }}"
-      />
-
-      <button
-        type="submit"
-        class="action-btn reject"
+      <form
+        action="/attention/reject"
+        method="POST"
       >
-        Reject Bag
-      </button>
 
-    </form>
+        <input
+          type="hidden"
+          name="bag_id"
+          value="{{ bag[0] }}"
+        />
+
+        <button
+          type="submit"
+          class="btn btn-danger btn-block"
+        >
+          Reject Bag
+        </button>
+
+      </form>
 
 
-    <!-- Assign flight -->
+      <!-- Assign flight -->
 
-    <form
-      action="/attention/assign"
-      method="POST"
-    >
-
-      <input
-        type="hidden"
-        name="bag_id"
-        value="{{ bag[0] }}"
-      />
-
-      <label>
-        Assign Flight:
-      </label>
-
-      <select name="flight_id">
-
-        {% for f in flights %}
-
-          <option value="{{ f[0] }}">
-            {{ f[1] }} → {{ f[2] }}
-          </option>
-
-        {% endfor %}
-
-      </select>
-
-      <button
-        type="submit"
-        class="action-btn assign"
+      <form
+        action="/attention/assign"
+        method="POST"
+        class="assign-form"
       >
-        Assign Flight
-      </button>
 
-    </form>
+        <input
+          type="hidden"
+          name="bag_id"
+          value="{{ bag[0] }}"
+        />
+
+        <label>
+          Assign Flight
+        </label>
+
+        <select name="flight_id">
+
+          {% for f in flights %}
+
+            <option value="{{ f[0] }}">
+              {{ f[1] }} → {{ f[2] }}
+            </option>
+
+          {% endfor %}
+
+        </select>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+        >
+          Assign Flight
+        </button>
+
+      </form>
+
+    </div>
 
   </div>
 
@@ -250,12 +197,13 @@
 
 {% if bags|length == 0 %}
 
-  <p>
+  <p class="empty-state">
     No bags need attention.
   </p>
 
 {% endif %}
 
-
+  </div>
+</div>
 </body>
 </html>

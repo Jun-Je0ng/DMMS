@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
 
@@ -19,69 +19,105 @@
     href="/static/styles.css"
   />
 
-  <style>
-
-    body {
-      font-family: sans-serif;
-      padding: 1rem;
-    }
-
-    .bag-card {
-      border: 1px solid #444;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      border-radius: 8px;
-    }
-
-    .bag-photo {
-      width: 100%;
-      max-width: 500px;
-      border-radius: 6px;
-    }
-
-    .bag-info {
-      margin-top: 0.75rem;
-      line-height: 1.7;
-    }
-
-    .short-id {
-      font-size: 2rem;
-      font-weight: bold;
-    }
-
-    .barcode {
-      font-family: monospace;
-      word-break: break-all;
-      color: #aaa;
-    }
-
-    .load-btn {
-      width: 100%;
-      padding: 1rem;
-      margin-top: 1rem;
-      background: #28a745;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 1.2rem;
-      cursor: pointer;
-    }
-
-    .load-btn:hover {
-      background: #218838;
-    }
-
-  </style>
-
 </head>
 
 
 <body>
+<div class="page">
 
-<h1>
-  MUL {{ mul_id }} — Load Bags
-</h1>
+  <!-- ── Side menu: CANs for this MUL ─────────────────────────────── -->
+  <div class="drawer-overlay" id="drawer-overlay"></div>
 
+  <nav class="drawer" id="can-drawer">
+    <div class="drawer-header">
+      <span>CANs · MUL {{ mul_id }}</span>
+      <button class="drawer-close" id="drawer-close" aria-label="Close menu">&times;</button>
+    </div>
+    <div class="drawer-list">
+      <a
+        class="drawer-item {% if selected_can_id is none %}active{% endif %}"
+        href="/worker/{{ mul_id }}{% if short_id_query %}?short_id={{ short_id_query }}{% endif %}"
+      >
+        All CANs
+      </a>
+
+      {% for can in cans %}
+        <a
+          class="drawer-item {% if selected_can_id == can[0] %}active{% endif %}"
+          href="/worker/{{ mul_id }}?can_id={{ can[0] }}{% if short_id_query %}&short_id={{ short_id_query }}{% endif %}"
+        >
+          <span class="drawer-item-title">CAN {{ can[0] }}</span>
+          {% if can[2] %}
+            <span class="drawer-item-sub">{{ can[2] }} → {{ can[3] }}</span>
+          {% else %}
+            <span class="drawer-item-sub muted">No flight assigned</span>
+          {% endif %}
+        </a>
+      {% endfor %}
+
+      {% if cans|length == 0 %}
+        <p class="muted" style="padding: 10px 14px; font-size: 12px;">No CANs configured for this MUL.</p>
+      {% endif %}
+
+      <div class="drawer-separator"></div>
+
+      <a class="drawer-item drawer-item-boxed drawer-item-attention" href="/attention">
+        <span class="drawer-item-title">Needs Attention</span>
+      </a>
+    </div>
+  </nav>
+
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <button class="menu-btn" id="menu-btn" aria-label="Open CAN menu" title="Choose a CAN">
+        <span></span><span></span><span></span>
+      </button>
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>
+          MUL {{ mul_id }} — Load Bags
+          {% if selected_can_id is not none %}
+            <span class="muted" style="text-transform: none; letter-spacing: normal; font-weight: 400;">
+              · CAN {{ selected_can_id }}
+            </span>
+          {% endif %}
+        </h1>
+        <p class="muted">Worker Loading View</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/">Board</a>
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
+
+  <div class="page-body">
+
+    <form class="short-id-search" method="GET" action="/worker/{{ mul_id }}">
+      {% if selected_can_id is not none %}
+        <input type="hidden" name="can_id" value="{{ selected_can_id }}">
+      {% endif %}
+      <div class="form-field" style="flex: 1; margin-bottom: 0;">
+        <label for="short_id">Find bag by short ID</label>
+        <input
+          type="number"
+          id="short_id"
+          name="short_id"
+          inputmode="numeric"
+          placeholder="e.g. 42"
+          value="{{ short_id_query }}"
+        >
+      </div>
+      <button type="submit" class="btn btn-primary">Find</button>
+      {% if short_id_query %}
+        <a
+          class="btn"
+          href="/worker/{{ mul_id }}{% if selected_can_id is not none %}?can_id={{ selected_can_id }}{% endif %}"
+        >
+          Clear
+        </a>
+      {% endif %}
+    </form>
 
 {% for bag in bags %}
 
@@ -104,6 +140,20 @@
         Bag #{{ bag[1] }}
       </div>
 
+      <div class="bag-highlight-row">
+        <span class="bag-flight-badge">
+          {% if bag[5] %}
+            {{ bag[5] }} → {{ bag[6] }}
+          {% else %}
+            No flight assigned
+          {% endif %}
+        </span>
+
+        <span class="bag-status bag-status-{{ bag[7] or 'scanned' }}">
+          {{ bag[7] or 'scanned' }}
+        </span>
+      </div>
+
       <strong>Bag database ID:</strong>
       {{ bag[0] }}
       <br>
@@ -122,16 +172,6 @@
 
       <br>
 
-      <strong>Flight:</strong>
-
-      {% if bag[5] %}
-        {{ bag[5] }} → {{ bag[6] }}
-      {% else %}
-        <span>No flight assigned</span>
-      {% endif %}
-
-      <br>
-
       <strong>CAN:</strong>
 
       {% if bag[8] %}
@@ -139,11 +179,6 @@
       {% else %}
         <span>Not assigned</span>
       {% endif %}
-
-      <br>
-
-      <strong>Status:</strong>
-      {{ bag[7] }}
 
     </div>
 
@@ -165,9 +200,17 @@
         value="{{ mul_id }}"
       />
 
+      {% if selected_can_id is not none %}
+        <input
+          type="hidden"
+          name="can_id"
+          value="{{ selected_can_id }}"
+        />
+      {% endif %}
+
       <button
         type="submit"
-        class="load-btn"
+        class="btn btn-good btn-block"
       >
         Confirm Bag #{{ bag[1] }} Loaded
       </button>
@@ -181,12 +224,108 @@
 
 {% if bags|length == 0 %}
 
-  <p>
-    No bags awaiting loading.
+  <p class="empty-state">
+    {% if short_id_query %}
+      No matching bag found for short ID {{ short_id_query }}.
+    {% elif selected_can_id is not none %}
+      No bags awaiting loading for this CAN.
+    {% else %}
+      No bags awaiting loading.
+    {% endif %}
   </p>
 
 {% endif %}
 
+
+{% if selected_can_id is not none %}
+
+  <details class="loaded-bags">
+
+    <summary>
+      Loaded Bags — CAN {{ selected_can_id }}
+      <span class="loaded-bags-count">{{ loaded_bags|length }}</span>
+    </summary>
+
+    <div class="loaded-bags-grid">
+
+      {% for lb in loaded_bags %}
+
+        <div class="loaded-bag-tile">
+
+          {% if lb[5] %}
+            <img
+              src="/{{ lb[5] }}"
+              alt="Bag {{ lb[1] }}"
+              class="loaded-bag-photo"
+            />
+          {% else %}
+            <div class="loaded-bag-photo loaded-bag-photo-empty"></div>
+          {% endif %}
+
+          <div class="loaded-bag-meta">
+
+            <span class="bag-id">#{{ lb[1] }}</span>
+
+            <span class="loaded-bag-flight">
+              {% if lb[2] %}
+                {{ lb[2] }} → {{ lb[3] }}
+              {% else %}
+                No flight
+              {% endif %}
+            </span>
+
+            <span class="loaded-bag-time muted">
+              {{ lb[4] | datetime }}
+            </span>
+
+            <form action="/worker/undo-load" method="POST">
+              <input type="hidden" name="bag_id" value="{{ lb[0] }}">
+              <input type="hidden" name="mul_id" value="{{ mul_id }}">
+              <input type="hidden" name="can_id" value="{{ selected_can_id }}">
+              <button type="submit" class="btn btn-danger btn-block">Undo</button>
+            </form>
+
+          </div>
+
+        </div>
+
+      {% endfor %}
+
+      {% if loaded_bags|length == 0 %}
+        <p class="muted" style="padding: 10px 0;">No bags loaded into this CAN yet.</p>
+      {% endif %}
+
+    </div>
+
+  </details>
+
+{% endif %}
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    const menuBtn   = document.getElementById("menu-btn");
+    const drawer    = document.getElementById("can-drawer");
+    const overlay   = document.getElementById("drawer-overlay");
+    const closeBtn  = document.getElementById("drawer-close");
+
+    function openDrawer() {
+      drawer.classList.add("open");
+      overlay.classList.add("open");
+    }
+
+    function closeDrawer() {
+      drawer.classList.remove("open");
+      overlay.classList.remove("open");
+    }
+
+    menuBtn.addEventListener("click", openDrawer);
+    closeBtn.addEventListener("click", closeDrawer);
+    overlay.addEventListener("click", closeDrawer);
+  })();
+</script>
 
 </body>
 </html>
