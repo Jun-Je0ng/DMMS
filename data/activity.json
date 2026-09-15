@@ -1,72 +1,87 @@
 [
   {
     "kind": "trigger",
-    "ts": 1789356150.8513079,
-    "detail": "TRIGGER"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789356153.0655174,
-    "detail": "12345"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789356153.3300061,
-    "detail": "1234512345"
-  },
-  {
-    "kind": "scan_unknown",
-    "ts": 1789356153.3300061,
-    "detail": "1234512345"
+    "ts": 1789427564.175726,
+    "detail": "sim-sensor"
   },
   {
     "kind": "trigger",
-    "ts": 1789356185.467666,
-    "detail": "TRIGGER"
+    "ts": 1789427854.1302054,
+    "detail": "sim-sensor"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789427866.8343287,
+    "detail": "QF123-SYD"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428035.3445985,
+    "detail": "VA867-WLG"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428036.0088007,
+    "detail": "QF123-SYD"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428036.2570531,
+    "detail": "VA867-WLG"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428036.4342275,
+    "detail": "QF123-SYD"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428036.5926325,
+    "detail": "VA867-WLG"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428036.729653,
+    "detail": "QF123-SYD"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428036.8955452,
+    "detail": "VA867-WLG"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428037.0674815,
+    "detail": "QF123-SYD"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428037.2555568,
+    "detail": "VA867-WLG"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428037.4631457,
+    "detail": "QF123-SYD"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428037.6822734,
+    "detail": "VA867-WLG"
+  },
+  {
+    "kind": "scan",
+    "ts": 1789428080.3927593,
+    "detail": "QF123-SYD"
   },
   {
     "kind": "trigger",
-    "ts": 1789356218.2534134,
-    "detail": "TRIGGER"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789356220.0616565,
-    "detail": "12345"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789356270.9136126,
-    "detail": "12345"
+    "ts": 1789428093.7099447,
+    "detail": "sim-sensor"
   },
   {
     "kind": "trigger",
-    "ts": 1789356307.5085912,
-    "detail": "TRIGGER"
-  },
-  {
-    "kind": "trigger",
-    "ts": 1789356356.6462162,
-    "detail": "TRIGGER"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789356375.5354958,
-    "detail": "12346"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789356417.2352092,
-    "detail": "11111"
-  },
-  {
-    "kind": "scan",
-    "ts": 1789356793.616703,
-    "detail": "se"
-  },
-  {
-    "kind": "scan_unknown",
-    "ts": 1789356793.616703,
-    "detail": "se"
+    "ts": 1789428099.9421916,
+    "detail": "sim-sensor"
   }
 ]

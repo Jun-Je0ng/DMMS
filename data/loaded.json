@@ -1,16 +1,1 @@
-[
-  {
-    "id": "12346",
-    "flight_number": "QF123",
-    "tag": 7,
-    "source": "gallery",
-    "loaded_at": "2026-09-14T13:28:35"
-  },
-  {
-    "id": "11111",
-    "flight_number": "VA867",
-    "tag": 8,
-    "source": "keypad",
-    "loaded_at": "2026-09-14T13:28:50"
-  }
-]
+[]

@@ -47,6 +47,12 @@ CAPTURES_DIR  = os.path.join(DATA_DIR, "captures")
 # (Remove from List). Cleared on Reset Board, just like loaded.json.
 DISMISSED_JSON = os.path.join(DATA_DIR, "dismissed.json")
 
+# Number of events in live_events.json at the time of the last Reset Board.
+# Written by POST /api/loaded/reset and served by GET /api/reset-offset so
+# mobile pages apply the same slice that the kiosk's localStorage offset does.
+RESET_JSON      = os.path.join(DATA_DIR, "reset.json")
+LIVE_EVENTS_JSON = os.path.join(DATA_DIR, "live_events.json")
+
 
 def _read_loaded():
     if not os.path.exists(LOADED_JSON):
@@ -86,6 +92,40 @@ def _write_dismissed(records):
     os.replace(tmp, DISMISSED_JSON)
 
 
+def _read_reset_offset():
+    """Return the event count stored at the last Reset Board (0 if never reset)."""
+    if not os.path.exists(RESET_JSON):
+        return 0
+    try:
+        with open(RESET_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        n = data.get("count", 0) if isinstance(data, dict) else 0
+        return n if isinstance(n, int) and n >= 0 else 0
+    except (json.JSONDecodeError, OSError):
+        return 0
+
+
+def _write_reset_offset(count):
+    """Persist the reset offset so GET /api/reset-offset can serve it."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    tmp = RESET_JSON + f".tmp-{uuid.uuid4().hex}"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"count": count}, f)
+    os.replace(tmp, RESET_JSON)
+
+
+def _current_live_event_count():
+    """How many events are currently in live_events.json (0 if missing/broken)."""
+    if not os.path.exists(LIVE_EVENTS_JSON):
+        return 0
+    try:
+        with open(LIVE_EVENTS_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return len(data) if isinstance(data, list) else 0
+    except (json.JSONDecodeError, OSError):
+        return 0
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=REPO_ROOT, **kwargs)
@@ -103,6 +143,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
 
@@ -156,6 +197,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._serve_json_file(LOADED_JSON)
         elif path == "/api/dismissed":
             self._serve_json_file(DISMISSED_JSON)
+        elif path == "/api/reset-offset":
+            # Serves data/reset.json — the event count at the last Reset Board press.
+            # Mobile pages read this to skip pre-reset events, matching the kiosk's
+            # localStorage liveResetOffset behaviour.
+            self._serve_json_file(RESET_JSON, default=b'{"count": 0}')
         elif path == "/api/settings":
             self._serve_json_file(SETTINGS_JSON, default=b"{}")
         elif path == "/api/config-defaults":
@@ -231,6 +277,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             _write_dismissed(records)
             self._json_response(200, {"ok": True, "dismissed": records})
         elif self.path == "/api/loaded/reset":
+            # Snapshot the current live_events.json length so mobile pages
+            # know to skip everything before this point — the same slice that
+            # the kiosk GUI's liveResetOffset (stored in localStorage) does.
+            _write_reset_offset(_current_live_event_count())
             _write_loaded([])
             _write_dismissed([])
             # Delete captured images but keep the folder so the camera can

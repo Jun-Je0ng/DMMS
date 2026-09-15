@@ -13,10 +13,11 @@
 // here as already loaded.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DMMS_DATA_URL   = "../data/live_events.json";
-const DMMS_IMAGE_BASE = "../data/";
-const DMMS_LOADED_URL = "/api/loaded";
-const DMMS_POLL_MS    = 1500;
+const DMMS_DATA_URL         = "../data/live_events.json";
+const DMMS_IMAGE_BASE       = "../";           // photo_path already starts with "data/..."
+const DMMS_LOADED_URL       = "/api/loaded";
+const DMMS_POLL_MS          = 1500;
+const DMMS_RESET_OFFSET_URL = "/api/reset-offset";
 
 function dmmsFixPath(p) {
   return String(p || "").replace(/\\/g, "/");
@@ -44,11 +45,35 @@ function dmmsStampTags(events) {
   return events;
 }
 
+// Fetch the server-side reset offset (written by run_gui.py when "Reset Board"
+// is pressed on the kiosk). Returns 0 when no reset has occurred yet.
+async function dmmsFetchResetOffset() {
+  try {
+    const r = await fetch(DMMS_RESET_OFFSET_URL, { cache: "no-store" });
+    if (!r.ok) return 0;
+    const data = await r.json();
+    const n = data && typeof data.count === "number" ? data.count : 0;
+    return n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function dmmsFetchEvents() {
-  const r = await fetch(DMMS_DATA_URL, { cache: "no-store" });
+  // Fetch events and the reset offset in parallel for speed.
+  const [r, offset] = await Promise.all([
+    fetch(DMMS_DATA_URL, { cache: "no-store" }),
+    dmmsFetchResetOffset(),
+  ]);
   if (!r.ok) throw new Error("events fetch failed: " + r.status);
-  const events = await r.json();
-  return dmmsStampTags(Array.isArray(events) ? events : []);
+  const raw = await r.json();
+  const all = Array.isArray(raw) ? raw : [];
+  // Stamp tags on the FULL array first (1-based position in live_events.json),
+  // matching app.js's stampTags() — the tag number must be identical on every
+  // client, because it is what staff type into the keypad confirmation page.
+  dmmsStampTags(all);
+  // Then drop the pre-reset events, same as app.js's liveResetOffset slice.
+  return offset > 0 ? all.slice(offset) : all;
 }
 
 async function dmmsFetchLoaded() {

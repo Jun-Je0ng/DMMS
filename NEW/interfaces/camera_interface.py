@@ -1,6 +1,7 @@
 import cv2
-from config.settings import settings
 import time
+
+from config.settings import settings
 
 
 mul_id = settings.get("active_mul")
@@ -12,34 +13,40 @@ camera_index = mul_cfg["camera_device_index"]
 resolution = mul_cfg["camera_resolution"]
 laser_timeout = mul_cfg["laser_timeout"]
 
-def take_photo():
-    # cam_index = settings.get("camera_device_index")
-    cam_index = camera_index
-    # resolution = settings.get("camera_resolution")
-    resolution = resolution
 
-    cap = cv2.VideoCapture(cam_index)
+def take_photo():
+    cap = cv2.VideoCapture(camera_index)
+
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
-    time.sleep(0.2)  # allow camera to adjust
+    time.sleep(0.2)
 
     ret, frame = cap.read()
     cap.release()
 
-    filename = f"static/bag_photos/{int(time.time())}.jpg"
-    cv2.imwrite(filename, frame)
+    if not ret or frame is None:
+        raise RuntimeError(
+            f"Failed to capture image from camera {camera_index}"
+        )
+
+    filename = (
+        f"static/bag_photos/{int(time.time())}.jpg"
+    )
+
+    success = cv2.imwrite(filename, frame)
+
+    if not success:
+        raise RuntimeError(
+            f"Failed to save photo: {filename}"
+        )
 
     return filename
 
 
 def preview_camera():
-    # cam_index = settings.get("camera_device_index")
-    cam_index = camera_index
-    # resolution = settings.get("camera_resolution")
-    resolution = resolution
+    cap = cv2.VideoCapture(camera_index)
 
-    cap = cv2.VideoCapture(cam_index)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
@@ -47,14 +54,14 @@ def preview_camera():
 
     while True:
         ret, frame = cap.read()
+
         if not ret:
             print("Camera read failed")
             break
 
         cv2.imshow("Camera Preview", frame)
 
-        # Quit preview
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cap.release()

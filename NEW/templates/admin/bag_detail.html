@@ -1,36 +1,166 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8">
-  <title>Bag {{ bag[1] }} — Details</title>
-  <link rel="stylesheet" href="/static/styles.css">
+
+  <meta charset="utf-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
+
+  <title>
+    Bag #{{ bag[1] }} — Details
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="/static/styles.css"
+  />
+
   <style>
-    body { font-family: sans-serif; padding: 2rem; }
-    img { border-radius: 8px; margin-bottom: 1rem; }
-    ul { list-style: none; padding: 0; }
-    li { padding: 0.5rem 0; border-bottom: 1px solid #444; }
+
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+    }
+
+    .bag-photo {
+      width: 300px;
+      max-width: 100%;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .bag-id {
+      font-size: 2rem;
+      font-weight: bold;
+    }
+
+    .barcode {
+      font-family: monospace;
+      word-break: break-all;
+    }
+
+    .details {
+      line-height: 1.8;
+      margin-bottom: 2rem;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #444;
+    }
+
   </style>
+
 </head>
+
+
 <body>
 
-<h1>Bag {{ bag[1] }}</h1>
+<h1>
+  Bag #{{ bag[1] }}
+</h1>
 
-<img src="/{{ bag[2] }}" style="width:300px">
 
-<p><strong>Flight:</strong> {{ bag[4] }} → {{ bag[5] }}</p>
+{% if bag[3] %}
 
-<h2>History</h2>
+  <img
+    src="/{{ bag[3] }}"
+    class="bag-photo"
+    alt="Bag {{ bag[1] }}"
+  />
+
+{% endif %}
+
+
+<div class="details">
+
+  <div class="bag-id">
+    Short ID: #{{ bag[1] }}
+  </div>
+
+  <strong>Database ID:</strong>
+  {{ bag[0] }}
+
+  <br>
+
+  <strong>Barcode:</strong>
+
+  {% if bag[2] %}
+
+    <span class="barcode">
+      {{ bag[2] }}
+    </span>
+
+  {% else %}
+
+    No barcode detected
+
+  {% endif %}
+
+  <br>
+
+  <strong>MUL:</strong>
+  {{ bag[5] }}
+
+  <br>
+
+  <strong>Flight:</strong>
+
+  {% if bag[6] %}
+
+    {{ bag[6] }} → {{ bag[7] }}
+
+  {% else %}
+
+    No flight assigned
+
+  {% endif %}
+
+</div>
+
+
+<h2>
+  History
+</h2>
+
 
 <ul>
+
   {% for e in events %}
+
     <li>
-      <strong>{{ e[0] }}</strong> —
-      {{ e[3] }} —
-      by user {{ e[1] }} —
+
+      <strong>
+        {{ e[0] }}
+      </strong>
+
+      —
+
+      {{ e[3] }}
+
+      —
+
+      by user {{ e[1] }}
+
+      —
+
       at {{ e[2] | datetime }}
+
     </li>
+
   {% endfor %}
+
 </ul>
+
 
 </body>
 </html>

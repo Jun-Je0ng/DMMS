@@ -1,23 +1,96 @@
-<h1>Flights</h1>
+<!doctype html> <html lang="en"> <head> <meta charset="utf-8">
 
-<table>
-  <tr>
-    <th>ID</th><th>Flight</th><th>Destination</th><th>Gate</th><th>Departure</th><th>Actions</th>
-  </tr>
-  {% for f in flights %}
-  <tr>
-    <td>{{ f[0] }}</td>
-    <td>{{ f[1] }}</td>
-    <td>{{ f[3] }}</td>
-    <td>{{ f[4] }}</td>
-    <td>{{ f[2] }}</td>
-    <td>
-      <a href="/admin/flights/edit/{{ f[0] }}">Edit</a>
-      <a href="/admin/flights/delete/{{ f[0] }}">Delete</a>
-    </td>
-  </tr>
-  {% endfor %}
-</table>
-
-<a href="/admin/flights/add">Add Flight</a>
-
+  <meta>
+  name="viewport"
+  content="width=device-width, initial-scale=1"
+  </meta>
+  
+  <title>Flights</title> <link rel="stylesheet" href="/static/styles.css" > <style> body { font-family: sans-serif; padding: 2rem; } table { width: 100%; border-collapse: collapse; } th, td { padding: 0.75rem; border-bottom: 1px solid #444; text-align: left; } .actions { display: flex; gap: 0.5rem; align-items: center; } button, .button { padding: 0.4rem 0.8rem; border-radius: 5px; border: none; cursor: pointer; text-decoration: none; display: inline-block; } .edit { background: #007bff; color: white; } .delete { background: #dc3545; color: white; } .add { background: #28a745; color: white; padding: 0.6rem 1rem; } </style> </head> <body> <h1>Flights</h1> <p> <a href="/admin/flights/add" class="button add" > + Add Flight </a> </p> <table>
+  <thead>
+  
+    <tr>
+      <th>ID</th>
+      <th>Flight</th>
+      <th>Destination</th>
+      <th>Gate</th>
+      <th>Departure</th>
+      <th>Actions</th>
+    </tr>
+  
+  </thead>
+  
+  
+  <tbody>
+  
+    {% for f in flights %}
+  
+      <tr>
+  
+        <td>
+          {{ f[0] }}
+        </td>
+  
+        <td>
+          {{ f[1] }}
+        </td>
+  
+        <td>
+          {{ f[3] }}
+        </td>
+  
+        <td>
+          {{ f[4] }}
+        </td>
+  
+        <td>
+          {{ f[2] }}
+        </td>
+  
+        <td>
+  
+          <div class="actions">
+  
+            <a
+              href="/admin/flights/edit/{{ f[0] }}"
+              class="button edit"
+            >
+              Edit
+            </a>
+  
+  
+            <form
+              action="/admin/flights/delete/{{ f[0] }}"
+              method="POST"
+              onsubmit="return confirm('Delete flight {{ f[1] }}?');"
+            >
+  
+              <button
+                type="submit"
+                class="delete"
+              >
+                Delete
+              </button>
+  
+            </form>
+  
+          </div>
+  
+        </td>
+  
+      </tr>
+  
+    {% else %}
+  
+      <tr>
+  
+        <td colspan="6">
+          No flights configured.
+        </td>
+  
+      </tr>
+  
+    {% endfor %}
+  
+  </tbody>
+  
+  </table> <p> <a href="/admin"> ← Admin Dashboard </a> </p> </body> </html>

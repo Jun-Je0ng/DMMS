@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if flight %}Edit Flight{% else %}Add Flight{% endif %}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <h1>{% if flight %}Edit Flight{% else %}Add Flight{% endif %}</h1>
+
+    <form
+      method="POST"
+      {% if flight %}
+        action="/admin/flights/edit/{{ flight[0] }}"
+      {% else %}
+        action="/admin/flights/add"
+      {% endif %}
+    >
+      <div>
+        <label for="flight_number">Flight Number</label>
+        <input
+          type="text"
+          id="flight_number"
+          name="flight_number"
+          required
+          value="{{ flight[1] if flight else '' }}"
+          placeholder="e.g. QF123"
+        >
+      </div>
+
+      <div>
+        <label for="destination">Destination</label>
+        <input
+          type="text"
+          id="destination"
+          name="destination"
+          required
+          value="{{ flight[3] if flight else '' }}"
+          placeholder="e.g. Sydney"
+        >
+      </div>
+
+      <div>
+        <label for="gate_number">Gate</label>
+        <input
+          type="text"
+          id="gate_number"
+          name="gate_number"
+          value="{{ flight[4] if flight else '' }}"
+          placeholder="e.g. 24"
+        >
+      </div>
+
+      <div>
+        <label for="departure_time">Departure Time</label>
+        <input
+          type="datetime-local"
+          id="departure_time"
+          name="departure_time"
+          required
+          value="{{ flight[2] if flight else '' }}"
+        >
+      </div>
+
+      <button type="submit">
+        {% if flight %}Save Changes{% else %}Add Flight{% endif %}
+      </button>
+    </form>
+
+    <p><a href="/admin/flights">← Back to Flights</a></p>
+  </body>
+</html>

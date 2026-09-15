@@ -1,12 +1,29 @@
 import sqlite3
+from pathlib import Path
 
-conn = sqlite3.connect("app.db")
-cursor = conn.cursor()
 
-with open("schema.sql", "r") as f:
-    cursor.executescript(f.read())
+BASE_DIR = Path(__file__).resolve().parent
+
+DB_PATH = BASE_DIR / "app.db"
+SCHEMA_PATH = BASE_DIR / "schema.sql"
+
+
+# Delete existing database if it exists
+if DB_PATH.exists():
+    DB_PATH.unlink()
+    print(f"Deleted existing database: {DB_PATH}")
+
+
+conn = sqlite3.connect(DB_PATH)
+
+with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
+    schema = f.read()
+
+conn.executescript(schema)
 
 conn.commit()
 conn.close()
 
-print("Database created successfully.")
+
+print(f"Database created successfully:")
+print(f"  {DB_PATH}")
