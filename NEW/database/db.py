@@ -74,10 +74,13 @@ def insert_bag_record(
     mul_id,
     bag_short_id=None,
     barcode=None,
+    flight_id=None,
+    final_destination=None,
     manual_flag=False,
     photo_path=None,
     initial_status="scanned",
 ):
+
     conn = get_connection()
     cur = conn.cursor()
 
@@ -114,8 +117,8 @@ def insert_bag_record(
         """, (
             str(bag_short_id),
             barcode,
-            None,
-            None,
+            final_destination,
+            flight_id,
             mul_id,
             photo_path,
             timestamp,
@@ -255,6 +258,40 @@ def get_bag_by_barcode(barcode):
         """, (barcode,))
 
         return cur.fetchone()
+
+    finally:
+        conn.close()
+
+
+def get_bag_route(barcode):
+    """
+    Find the permanent routing configuration
+    for a barcode.
+    """
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT
+                flight_id,
+                mul_id,
+                final_destination
+            FROM bag_routes
+            WHERE barcode = ?
+        """, (barcode,))
+
+        row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return {
+            "flight_id": row[0],
+            "mul_id": row[1],
+            "final_destination": row[2],
+        }
 
     finally:
         conn.close()

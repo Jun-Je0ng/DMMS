@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect
 from database.db import get_connection
 from config.settings import settings
 from datetime import datetime
-
+from pathlib import Path
 
 
 app = Flask(__name__)
@@ -161,7 +161,6 @@ def main_dashboard():
             "total_scanned": total_scanned,
             "loaded": loaded,
             "needs_attention": needs_attention,
-            "in_can": in_can,
         }
     )
 
@@ -1079,6 +1078,180 @@ def admin_settings_update():
     settings.save()
 
     return redirect("/admin/settings")
+
+# ============================================================
+# ADMIN — RESET BAG ACTIVITY
+# ============================================================
+
+
+@app.route("/admin/reset-bag-activity", methods=["POST"])
+def reset_bag_activity():
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # --------------------------------------------------------
+    # Bag photo directory
+    # --------------------------------------------------------
+
+    base_dir = Path(__file__).resolve().parent
+    photo_dir = base_dir / "static" / "bag_photos"
+
+    try:
+
+        # ----------------------------------------------------
+        # Get all existing photo paths before deleting bags.
+        #
+        # This lets us remove the actual files from disk.
+        # ----------------------------------------------------
+
+        cur.execute("""
+            SELECT photo_path
+            FROM bags
+            WHERE photo_path IS NOT NULL
+        """)
+
+        photo_rows = cur.fetchall()
+
+        # ----------------------------------------------------
+        # Delete bag events first.
+        #
+        # bag_events references bags.
+        # ----------------------------------------------------
+
+        cur.execute("""
+            DELETE FROM bag_events
+        """)
+
+        # ----------------------------------------------------
+        # Delete bag statuses.
+        #
+        # bag_status references bags.
+        # ----------------------------------------------------
+
+        cur.execute("""
+            DELETE FROM bag_status
+        """)
+
+        # ----------------------------------------------------
+        # Delete all bag records.
+        #
+        # This also resets the active bag dataset.
+        #
+        # Flights, MULs, CANs and users are NOT touched.
+        # ----------------------------------------------------
+
+        cur.execute("""
+            DELETE FROM bags
+        """)
+
+        # ----------------------------------------------------
+        # Commit database changes.
+        # ----------------------------------------------------
+
+        conn.commit()
+
+        # ----------------------------------------------------
+        # Delete old bag photos from disk.
+        #
+        # Only files recorded in the bags table are removed.
+        # ----------------------------------------------------
+
+        deleted_photos = 0
+
+        for row in photo_rows:
+
+            photo_path = row[0]
+
+            if not photo_path:
+                continue
+
+            # Convert database path such as:
+            #
+            # static/bag_photos/1789433160.jpg
+            #
+            # into an absolute filesystem path.
+
+            file_path = base_dir / photo_path
+
+            try:
+
+                if file_path.is_file():
+                    file_path.unlink()
+                    deleted_photos += 1
+
+            except OSError as e:
+
+                print(
+                    f"[RESET WARNING] "
+                    f"Could not delete photo "
+                    f"{file_path}: {e}"
+                )
+
+        # ----------------------------------------------------
+        # Optional cleanup:
+        #
+        # Remove any remaining files in bag_photos.
+        #
+        # This ensures old photos that may have been left
+        # behind by previous versions are also removed.
+        # ----------------------------------------------------
+
+        if photo_dir.exists():
+
+            for file_path in photo_dir.iterdir():
+
+                if file_path.is_file():
+
+                    try:
+                        file_path.unlink()
+
+                    except OSError as e:
+
+                        print(
+                            f"[RESET WARNING] "
+                            f"Could not delete old photo "
+                            f"{file_path}: {e}"
+                        )
+
+        print(
+            "[RESET] Bag activity reset successfully"
+        )
+
+        print(
+            f"[RESET] Deleted {len(photo_rows)} "
+            f"bag photo references"
+        )
+
+        print(
+            f"[RESET] Removed {deleted_photos} "
+            f"photo files"
+        )
+
+    except Exception as e:
+
+        # ----------------------------------------------------
+        # Something failed.
+        #
+        # Roll back database changes.
+        # ----------------------------------------------------
+
+        conn.rollback()
+
+        print(
+            f"[RESET ERROR] "
+            f"Failed to reset bag activity: {e}"
+        )
+
+        raise
+
+    finally:
+
+        conn.close()
+
+    return redirect("/admin")
+
+
 
 
 # ============================================================

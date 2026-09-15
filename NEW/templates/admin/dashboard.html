@@ -1,31 +1,70 @@
 <!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>Admin Dashboard</title>
-  <link rel="stylesheet" href="/static/styles.css">
-  <style>
-    body { font-family: sans-serif; padding: 2rem; }
-    .admin-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
-    .admin-card {
-      border: 1px solid #444; padding: 1rem; border-radius: 8px;
-      background: #222; color: #eee; text-align: center;
-    }
-    .admin-card a { color: #4ea3ff; text-decoration: none; font-size: 1.2rem; }
-  </style>
-</head>
-<body>
+  <head>
+    <meta charset="utf-8">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+      body { font-family: sans-serif; padding: 2rem; }
+      .admin-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      }
+      .admin-card {
+        border: 1px solid #444;
+        padding: 1rem;
+        border-radius: 8px;
+        background: #222;
+        color: #eee;
+        text-align: center;
+      }
+      .admin-card a { color: #4ea3ff; text-decoration: none; font-size: 1.2rem; }
+      .danger-card { border-color: #8b2d2d; background: #2a1818; }
+      .danger-card h2 { color: #ff6b6b; margin-top: 0; }
+      .danger-card p { color: #bbb; font-size: 0.9rem; line-height: 1.5; }
+      .danger-button {
+        width: 100%;
+        padding: 0.8rem;
+        border: none;
+        border-radius: 6px;
+        background: #dc3545;
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      .danger-button:hover { background: #b02a37; }
+    </style>
+  </head>
+  <body>
+    <h1>Admin Dashboard</h1>
 
-<h1>Admin Dashboard</h1>
+    <div class="admin-grid">
+      <div class="admin-card"><a href="/admin/flights">Manage Flights</a></div>
+      <div class="admin-card"><a href="/admin/cans">Manage CANs</a></div>
+      <div class="admin-card"><a href="/admin/muls">Manage MULs</a></div>
+      <div class="admin-card"><a href="/admin/users">Manage Users</a></div>
+      <div class="admin-card"><a href="/admin/bag-lookup">Bag Lookup</a></div>
+      <div class="admin-card"><a href="/attention">Needs Attention</a></div>
 
-<div class="admin-grid">
-  <div class="admin-card"><a href="/admin/flights">Manage Flights</a></div>
-  <div class="admin-card"><a href="/admin/cans">Manage CANs</a></div>
-  <div class="admin-card"><a href="/admin/muls">Manage MULs</a></div>
-  <div class="admin-card"><a href="/admin/users">Manage Users</a></div>
-  <div class="admin-card"><a href="/admin/bag-lookup">Bag Lookup</a></div>
-  <div class="admin-card"><a href="/attention">Needs Attention</a></div>
-</div>
+      <!-- ======================================================
+           RESET BAG ACTIVITY
+           ====================================================== -->
+      <div class="admin-card danger-card">
+        <h2>Reset Bag Activity</h2>
 
-</body>
+        <form
+          action="/admin/reset-bag-activity"
+          method="POST"
+          onsubmit="return confirm(
+            'WARNING: This will delete ALL bag activity, statuses, events and bag photos.\n\n' +
+            'Flights, MULs, CANs, users and barcode routes will be preserved.\n\n' +
+            'Are you sure you want to continue?'
+          );"
+        >
+          <button type="submit" class="danger-button">Reset Bag Activity</button>
+        </form>
+      </div>
+    </div>
+  </body>
 </html>

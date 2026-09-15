@@ -190,6 +190,24 @@ CREATE TABLE users (
         )
 );
 
+CREATE TABLE bag_routes (
+    barcode TEXT PRIMARY KEY,
+
+    flight_id INTEGER,
+
+    mul_id INTEGER NOT NULL,
+
+    final_destination TEXT,
+
+    FOREIGN KEY (flight_id)
+        REFERENCES flights(flight_id)
+        ON DELETE SET NULL,
+
+    FOREIGN KEY (mul_id)
+        REFERENCES mul(mul_id)
+        ON DELETE CASCADE
+);
+
 
 -- ============================================================
 -- INITIAL TEST DATA
