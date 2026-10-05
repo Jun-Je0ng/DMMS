@@ -18,11 +18,24 @@
       </div>
     </div>
     <div class="topbar-nav">
-      <a class="btn" href="/">Main Dashboard</a>
+      <a class="btn" href="/">MUL Boards</a>
     </div>
   </header>
 
   <div class="page-body">
+
+    <div class="form-field attention-mul-filter">
+      <label for="mul-filter">MUL</label>
+      <select
+        id="mul-filter"
+        onchange="window.location.href = this.value ? ('/attention?mul_id=' + this.value) : '/attention';"
+      >
+        <option value="" {% if selected_mul_id is none %}selected{% endif %}>All MULs</option>
+        {% for m in muls %}
+          <option value="{{ m[0] }}" {% if selected_mul_id == m[0] %}selected{% endif %}>{{ m[1] }}</option>
+        {% endfor %}
+      </select>
+    </div>
 
     {% if bags|length == 0 %}
 
@@ -105,11 +118,13 @@
 
         <form action="/attention/resolve" method="POST">
           <input type="hidden" name="bag_id" value="{{ bag[0] }}">
+          <input type="hidden" name="mul_id" value="{{ selected_mul_id if selected_mul_id is not none else '' }}">
           <button type="submit" class="btn btn-good btn-block">Mark as Resolved</button>
         </form>
 
         <form action="/attention/reject" method="POST">
           <input type="hidden" name="bag_id" value="{{ bag[0] }}">
+          <input type="hidden" name="mul_id" value="{{ selected_mul_id if selected_mul_id is not none else '' }}">
           <button type="submit" class="btn btn-danger btn-block">Reject Bag</button>
         </form>
 
@@ -118,6 +133,7 @@
       <form action="/attention/assign" method="POST" class="assign-form">
 
         <input type="hidden" name="bag_id" value="{{ bag[0] }}">
+        <input type="hidden" name="mul_id" value="{{ selected_mul_id if selected_mul_id is not none else '' }}">
 
         <label>Assign Flight</label>
 
@@ -137,6 +153,21 @@
 {% endfor %}
 
 <script>
+
+  // ----------------------------------------------------------
+  // Auto-refresh, same cadence as the board. A reload preserves
+  // the current mul_id filter since it is just the query string.
+  // Skipped while a bag detail popup is open, so it does not get
+  // yanked shut out from under whoever is reading it — the next
+  // tick a few seconds later will pick the reload back up.
+  // ----------------------------------------------------------
+
+  setInterval(() => {
+    var modalOpen = document.querySelector(".modal-overlay:not([hidden])");
+    if (modalOpen) return;
+    window.location.reload();
+  }, 5000);
+
 (function () {
 
   document.querySelectorAll("[data-bag-modal]").forEach(function (btn) {

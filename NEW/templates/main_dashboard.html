@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MUL Baggage Routing</title>
+  <title>{{ mul_name }} — MUL Baggage Routing</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 
@@ -22,7 +22,7 @@
       />
       
       <div class="brand-text">
-        <h1>MUL Baggage Routing</h1>
+        <h1>{{ mul_name }}</h1>
         <p class="muted">
           Make-Up Line · Can Assignment Board
         </p>
@@ -179,13 +179,14 @@
 
   <footer class="footbar">
     <div class="topbar-nav">
-      <a class="btn btn-primary" href="/worker/1">Worker View</a>
-      <a class="btn btn-warning" href="/attention">Needs Attention</a>
+      <a class="btn" href="/">Switch MUL</a>
+      <a class="btn btn-primary" href="/worker/{{ mul_id }}">Worker View</a>
+      <a class="btn btn-warning" href="/attention?mul_id={{ mul_id }}">Needs Attention</a>
       <a class="btn" href="/admin">Admin Dashboard</a>
       <button
         class="btn"
         id="btn-worker-qr"
-        data-mul-id="1"
+        data-mul-id="{{ mul_id }}"
         title="Show a QR code a phone can scan to open the Worker View"
       >
         Worker QR
@@ -235,10 +236,14 @@
 
 
   // ----------------------------------------------------------
-  // Auto-refresh
+  // Auto-refresh. Skipped while the Worker QR modal is open, so
+  // it does not get closed out from under someone mid-scan.
   // ----------------------------------------------------------
 
   setInterval(() => {
+
+    var qrModal = document.getElementById("worker-qr-modal");
+    if (qrModal && !qrModal.hidden) return;
 
     window.location.reload();
 

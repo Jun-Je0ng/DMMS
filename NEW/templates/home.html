@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Select MUL</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>MUL Baggage Routing</h1>
+        <p class="muted">Select a Make-Up Line to view its board</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
+
+  <div class="page-body">
+
+    {% if muls|length == 0 %}
+
+      <p class="empty-state">
+        No MULs configured yet. Add one from Admin → Manage MULs.
+      </p>
+
+    {% else %}
+
+      <div class="admin-grid">
+
+        {% for m in muls %}
+
+          <div class="admin-card">
+            <a href="/mul/{{ m[0] }}">
+              {{ m[1] }}
+              <div class="mul-card-sub">
+                {{ m[2] }} CAN{{ 's' if m[2] != 1 else '' }}
+              </div>
+            </a>
+          </div>
+
+        {% endfor %}
+
+      </div>
+
+    {% endif %}
+
+  </div>
+</div>
+</body>
+</html>

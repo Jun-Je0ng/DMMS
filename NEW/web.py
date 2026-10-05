@@ -46,19 +46,66 @@ def format_datetime(timestamp):
 
 
 # ============================================================
-# MAIN DASHBOARD
+# HOME — choose which MUL's board to view
 # ============================================================
 
 @app.route("/")
-def main_dashboard():
+def home():
+
     conn = get_connection()
     cur = conn.cursor()
 
+    cur.execute("""
+        SELECT
+            m.mul_id,
+            m.mul_name,
+            (
+                SELECT COUNT(*)
+                FROM cans c
+                WHERE c.mul_id = m.mul_id
+            ) AS can_count
+        FROM mul m
+        ORDER BY m.mul_id ASC
+    """)
+
+    muls = cur.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "home.html",
+        muls=muls
+    )
+
+
+# ============================================================
+# MUL BOARD
+# ============================================================
+
+@app.route("/mul/<int:mul_id>")
+def mul_board(mul_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT mul_name
+        FROM mul
+        WHERE mul_id = ?
+    """, (mul_id,))
+
+    mul_row = cur.fetchone()
+
+    if mul_row is None:
+        conn.close()
+        return "MUL not found", 404
+
+    mul_name = mul_row[0]
+
     # --------------------------------------------------------
-    # CANs — only CANs that are currently assigned to a MUL AND
-    # have a flight assigned. A CAN pulled off its MUL (mul_id
-    # set to None on the CAN Assignment page) drops off the
-    # board immediately, same as one with no flight.
+    # CANs — only CANs that are currently assigned to THIS MUL
+    # AND have a flight assigned. A CAN pulled off its MUL
+    # (mul_id set to None on the CAN Assignment page) drops off
+    # the board immediately, same as one with no flight.
     # --------------------------------------------------------
 
     cur.execute("""
@@ -73,16 +120,15 @@ def main_dashboard():
         FROM cans c
         JOIN flights f
             ON f.flight_id = c.flight_id
-        WHERE c.flight_id IS NOT NULL
-          AND c.mul_id IS NOT NULL
+        WHERE c.mul_id = ?
         ORDER BY f.departure_time ASC
-    """)
+    """, (mul_id,))
 
     cans = cur.fetchall()
 
     # --------------------------------------------------------
     # Bags + status, matched to the CAN that handles their
-    # flight/MUL combination.
+    # flight/MUL combination — scoped to this MUL.
     # --------------------------------------------------------
 
     cur.execute("""
@@ -101,10 +147,13 @@ def main_dashboard():
             AND c.mul_id = b.mul_id
         LEFT JOIN bag_status s
             ON b.bag_id = s.bag_id
-        WHERE s.status IS NULL
-        OR s.status != 'loaded'
+        WHERE b.mul_id = ?
+          AND (
+              s.status IS NULL
+              OR s.status != 'loaded'
+          )
         ORDER BY b.scanned_at DESC
-    """)
+    """, (mul_id,))
 
     bags = cur.fetchall()
 
@@ -146,7 +195,7 @@ def main_dashboard():
             barcode,
             photo_path,
             flight_id,
-            mul_id,
+            mul_id_,
             status,
             can_id
         ) = b
@@ -156,35 +205,42 @@ def main_dashboard():
                 "bag_id": bag_id,
                 "short_id": short_id,
                 "barcode": barcode,
-                "mul_id": mul_id,
+                "mul_id": mul_id_,
                 "photo_path": photo_path,
                 "status": status or "scanned"
             })
 
     # --------------------------------------------------------
-    # Statistics
+    # Statistics — scoped to this MUL
     # --------------------------------------------------------
 
     cur.execute("""
         SELECT COUNT(*)
         FROM bags
-    """)
+        WHERE mul_id = ?
+    """, (mul_id,))
 
     total_scanned = cur.fetchone()[0]
 
     cur.execute("""
         SELECT COUNT(*)
-        FROM bag_status
-        WHERE status = 'loaded'
-    """)
+        FROM bag_status s
+        JOIN bags b
+            ON b.bag_id = s.bag_id
+        WHERE s.status = 'loaded'
+          AND b.mul_id = ?
+    """, (mul_id,))
 
     loaded = cur.fetchone()[0]
 
     cur.execute("""
         SELECT COUNT(*)
-        FROM bag_status
-        WHERE status = 'needs_attention'
-    """)
+        FROM bag_status s
+        JOIN bags b
+            ON b.bag_id = s.bag_id
+        WHERE s.status = 'needs_attention'
+          AND b.mul_id = ?
+    """, (mul_id,))
 
     needs_attention = cur.fetchone()[0]
 
@@ -194,6 +250,8 @@ def main_dashboard():
 
     return render_template(
         "main_dashboard.html",
+        mul_id=mul_id,
+        mul_name=mul_name,
         cans=list(can_map.values()),
         stats={
             "total_scanned": total_scanned,
@@ -527,11 +585,14 @@ def worker_undo_load():
 @app.route("/attention")
 def needs_attention():
 
+    mul_id_raw = request.args.get("mul_id", "").strip()
+    selected_mul_id = int(mul_id_raw) if mul_id_raw else None
+
     conn = get_connection()
     cur = conn.cursor()
 
     # Get the latest event for each bag.
-    cur.execute("""
+    query = """
         SELECT
             b.bag_id,
             b.short_id,
@@ -559,9 +620,17 @@ def needs_attention():
            )
 
         WHERE s.status = 'needs_attention'
+    """
 
-        ORDER BY e.timestamp DESC
-    """)
+    params = []
+
+    if selected_mul_id is not None:
+        query += " AND b.mul_id = ?"
+        params.append(selected_mul_id)
+
+    query += " ORDER BY e.timestamp DESC"
+
+    cur.execute(query, params)
 
     bags = cur.fetchall()
 
@@ -576,13 +645,25 @@ def needs_attention():
 
     flights_ = cur.fetchall()
 
+    cur.execute("""
+        SELECT
+            mul_id,
+            mul_name
+        FROM mul
+        ORDER BY mul_id ASC
+    """)
+
+    muls = cur.fetchall()
+
 
     conn.close()
 
     return render_template(
         "needs_attention.html",
         bags=bags,
-        flights=flights_
+        flights=flights_,
+        muls=muls,
+        selected_mul_id=selected_mul_id
     )
 
 
@@ -594,6 +675,7 @@ def needs_attention():
 def resolve_bag():
 
     bag_id = int(request.form["bag_id"])
+    mul_id_raw = request.form.get("mul_id", "").strip()
 
     # TODO: actual authenticated user
     user_id = 1
@@ -644,6 +726,9 @@ def resolve_bag():
     finally:
         conn.close()
 
+    if mul_id_raw:
+        return redirect(f"/attention?mul_id={mul_id_raw}")
+
     return redirect("/attention")
 
 
@@ -655,6 +740,7 @@ def resolve_bag():
 def reject_bag():
 
     bag_id = int(request.form["bag_id"])
+    mul_id_raw = request.form.get("mul_id", "").strip()
 
     # TODO: actual authenticated user
     user_id = 1
@@ -705,6 +791,9 @@ def reject_bag():
     finally:
         conn.close()
 
+    if mul_id_raw:
+        return redirect(f"/attention?mul_id={mul_id_raw}")
+
     return redirect("/attention")
 
 
@@ -717,6 +806,7 @@ def assign_flight():
 
     bag_id = int(request.form["bag_id"])
     flight_id = int(request.form["flight_id"])
+    mul_id_raw = request.form.get("mul_id", "").strip()
 
     # TODO: actual authenticated user
     user_id = 1
@@ -782,6 +872,9 @@ def assign_flight():
 
     finally:
         conn.close()
+
+    if mul_id_raw:
+        return redirect(f"/attention?mul_id={mul_id_raw}")
 
     return redirect("/attention")
 
