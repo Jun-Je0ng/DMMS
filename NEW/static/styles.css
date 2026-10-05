@@ -1131,3 +1131,129 @@ td .btn { padding: 6px 12px; font-size: 11px; }
   font-size: 12.5px;
   color: var(--text-secondary);
 }
+
+/* ---- Needs Attention: photo grid + detail modal --------------------- */
+
+.attention-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .attention-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.attention-tile {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s;
+}
+
+.attention-tile:hover { border-color: var(--warning); }
+
+.attention-photo {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: #111;
+}
+
+.attention-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.attention-tile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+}
+
+.attention-tile-meta .attention-reason {
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+}
+
+/* Detail modal shell — reused for any bag-card popup */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 400;
+  overflow-y: auto;
+}
+
+.modal-overlay[hidden] { display: none; }
+
+.modal-box {
+  position: relative;
+  max-width: 480px;
+  width: 100%;
+  margin: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover { color: var(--text-primary); }
+
+/* ---- CAN Assignment: active / inactive side-by-side lists ----------- */
+
+.can-lists {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .can-lists { grid-template-columns: 1fr 1fr; }
+}
+
+.can-list-col table { width: 100%; }
+
+.can-list-col .card-title {
+  margin-bottom: 10px;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+}
+
+.can-list-col .card-title .muted {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

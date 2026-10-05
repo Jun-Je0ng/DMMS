@@ -5,8 +5,8 @@
             "barcode_serial_port": "COM1",
             "camera_device_index": 1,
             "camera_resolution": [
-                1280,
-                720
+                2560,
+                1440
             ],
             "laser_timeout": 2.0
         }

@@ -196,13 +196,6 @@
 
 </div>
 
-<!-- ── Worker QR modal ──────────────────────────────────────────────────
-     The server's LAN address changes depending on which network it's
-     plugged into, so instead of a fixed URL, this reads the address the
-     server is actually bound to right now (GET /api/server-info) and
-     renders it as a QR code a phone camera can scan straight into the
-     worker view for this MUL — works as long as the phone is on the
-     same network as this computer, whichever network that is. -->
 <div class="qr-modal" id="worker-qr-modal" hidden>
   <div class="qr-modal-box">
     <button class="qr-modal-close" id="worker-qr-close" aria-label="Close">&times;</button>
@@ -210,7 +203,7 @@
     <p class="muted" id="worker-qr-note">Detecting this computer's network address…</p>
     <div class="qr-modal-grid">
       <div class="qr-card">
-        <div class="qr-canvas-wrap"><canvas id="worker-qr-canvas" width="220" height="220"></canvas></div>
+        <div class="qr-canvas-wrap"><canvas id="worker-qr-canvas" width="170" height="170"></canvas></div>
         <div class="qr-card-title">Worker View</div>
         <div class="qr-card-url mono" id="worker-qr-url">—</div>
       </div>

@@ -48,13 +48,15 @@ CREATE TABLE mul (
 CREATE TABLE cans (
     can_id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    mul_id INTEGER NOT NULL,
+    -- NULL means this CAN is not currently assigned to any MUL
+    -- ("inactive" on the CAN assignment page).
+    mul_id INTEGER,
 
     flight_id INTEGER,
 
     FOREIGN KEY (mul_id)
         REFERENCES mul(mul_id)
-        ON DELETE CASCADE,
+        ON DELETE SET NULL,
 
     FOREIGN KEY (flight_id)
         REFERENCES flights(flight_id)

@@ -155,7 +155,8 @@ from interfaces.camera_interface import take_photo
 from config.settings import settings
 from database.db import (
     insert_bag_record,
-    get_bag_route
+    get_bag_route,
+    flight_has_can_in_mul
 )
 
 
@@ -342,6 +343,37 @@ class EventManager:
                 if bag_id is not None:
                     print(
                         f"[BAG] Wrong-MUL barcode sent to "
+                        f"needs attention "
+                        f"(bag_id={bag_id})"
+                    )
+
+                return
+
+            # ------------------------------------------------
+            # Flight not assigned to any CAN in this MUL yet
+            # ------------------------------------------------
+
+            if not flight_has_can_in_mul(flight_id, self.mul_id):
+
+                print(
+                    f"[ROUTE] Flight {flight_id} has no CAN "
+                    f"assigned in MUL {self.mul_id}"
+                )
+
+                bag_id = insert_bag_record(
+                    barcode=barcode,
+                    mul_id=self.mul_id,
+                    flight_id=flight_id,
+                    final_destination=final_destination,
+                    manual_flag=False,
+                    photo_path=photo_path,
+                    initial_status="needs_attention",
+                    reason="Wrong MUL — flight has no CAN assigned in this MUL"
+                )
+
+                if bag_id is not None:
+                    print(
+                        f"[BAG] Unrouted flight sent to "
                         f"needs attention "
                         f"(bag_id={bag_id})"
                     )

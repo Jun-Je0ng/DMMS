@@ -55,9 +55,10 @@ def main_dashboard():
     cur = conn.cursor()
 
     # --------------------------------------------------------
-    # CANs — only CANs that currently have a flight assigned.
-    # A flight with no CAN assignment has nowhere to be shown,
-    # so it is left out of the board entirely.
+    # CANs — only CANs that are currently assigned to a MUL AND
+    # have a flight assigned. A CAN pulled off its MUL (mul_id
+    # set to None on the CAN Assignment page) drops off the
+    # board immediately, same as one with no flight.
     # --------------------------------------------------------
 
     cur.execute("""
@@ -73,6 +74,7 @@ def main_dashboard():
         JOIN flights f
             ON f.flight_id = c.flight_id
         WHERE c.flight_id IS NOT NULL
+          AND c.mul_id IS NOT NULL
         ORDER BY f.departure_time ASC
     """)
 
@@ -998,6 +1000,15 @@ def admin_cans():
 
     cans = cur.fetchall()
 
+    # ----------------------------------------------------------
+    # Active vs inactive — a CAN is "active" as long as it is
+    # currently assigned to a MUL, regardless of whether it also
+    # has a flight assigned.
+    # ----------------------------------------------------------
+
+    active_cans = [c for c in cans if c[1] is not None]
+    inactive_cans = [c for c in cans if c[1] is None]
+
     cur.execute("""
         SELECT
             mul_id,
@@ -1023,7 +1034,8 @@ def admin_cans():
 
     return render_template(
         "admin/cans.html",
-        cans=cans,
+        active_cans=active_cans,
+        inactive_cans=inactive_cans,
         muls=muls,
         flights=flights
     )
@@ -1033,8 +1045,14 @@ def admin_cans():
 def admin_cans_update():
 
     can_id = int(request.form["can_id"])
-    mul_id = int(request.form["mul_id"])
-    flight_id = int(request.form["flight_id"])
+
+    # Empty selection = unassigned. A CAN with no MUL is "inactive"
+    # on the CAN assignment page but is not deleted.
+    mul_id_raw = request.form.get("mul_id", "").strip()
+    mul_id = int(mul_id_raw) if mul_id_raw else None
+
+    flight_id_raw = request.form.get("flight_id", "").strip()
+    flight_id = int(flight_id_raw) if flight_id_raw else None
 
     conn = get_connection()
     cur = conn.cursor()
@@ -1072,7 +1090,8 @@ def admin_cans_update():
 @app.route("/admin/cans/add", methods=["POST"])
 def admin_cans_add():
 
-    mul_id = int(request.form["mul_id"])
+    mul_id_raw = request.form.get("mul_id", "").strip()
+    mul_id = int(mul_id_raw) if mul_id_raw else None
 
     flight_id = request.form.get("flight_id", "").strip()
     flight_id = int(flight_id) if flight_id else None

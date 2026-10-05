@@ -79,6 +79,7 @@ def insert_bag_record(
     manual_flag=False,
     photo_path=None,
     initial_status="scanned",
+    reason=None,
 ):
 
     conn = get_connection()
@@ -147,7 +148,7 @@ def insert_bag_record(
 
         event_type = "manual_scan" if manual_flag else "scanned"
 
-        details = (
+        details = reason if reason else (
             f"Barcode scanned: {barcode}"
             if barcode
             else "No barcode detected"
@@ -258,6 +259,31 @@ def get_bag_by_barcode(barcode):
         """, (barcode,))
 
         return cur.fetchone()
+
+    finally:
+        conn.close()
+
+
+def flight_has_can_in_mul(flight_id, mul_id):
+    """
+    True if the given flight currently has a CAN assigned within this
+    MUL. A barcode can route correctly to this MUL and still have
+    nowhere to go on the floor if nobody has set up a CAN for its
+    flight here yet — that's caught separately from "wrong MUL".
+    """
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM cans
+            WHERE mul_id = ?
+              AND flight_id = ?
+        """, (mul_id, flight_id))
+
+        return cur.fetchone()[0] > 0
 
     finally:
         conn.close()

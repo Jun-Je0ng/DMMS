@@ -1,209 +1,177 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
-
 <head>
-
-  <meta charset="utf-8" />
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  />
-
-  <title>
-    Needs Attention
-  </title>
-
-  <link
-    rel="stylesheet"
-    href="/static/styles.css"
-  />
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Needs Attention</title>
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
-
-
 <body>
 <div class="page">
 
   <header class="topbar" style="margin: 0 24px;">
     <div class="brand">
-      <span class="brand-mark" style="background: linear-gradient(180deg, var(--warning), var(--serious));"></span>
+      <span class="brand-mark"></span>
       <div class="brand-text">
         <h1>Needs Attention</h1>
-        <p class="muted">No Can Match · Handle By Hand</p>
+        <p class="muted">Exceptions · Click a bag for details</p>
       </div>
     </div>
     <div class="topbar-nav">
-      <a class="btn" href="/">Board</a>
-      <a class="btn" href="/admin">Admin Dashboard</a>
+      <a class="btn" href="/">Main Dashboard</a>
     </div>
   </header>
 
   <div class="page-body">
 
-{% for bag in bags %}
+    {% if bags|length == 0 %}
 
-  <div class="bag-card">
+      <p class="empty-state">No bags need attention.</p>
 
-    {% if bag[3] %}
+    {% else %}
 
-      <img
-        src="/{{ bag[3] }}"
-        class="bag-photo"
-        alt="Bag {{ bag[1] }}"
-      />
+      <div class="attention-grid">
+
+        {% for bag in bags %}
+
+          <button
+            type="button"
+            class="attention-tile"
+            data-bag-modal="bag-modal-{{ bag[0] }}"
+          >
+
+            {% if bag[3] %}
+              <img src="/{{ bag[3] }}" class="attention-photo" alt="Bag {{ bag[1] }}">
+            {% else %}
+              <div class="attention-photo attention-photo-empty">No Photo</div>
+            {% endif %}
+
+            <div class="attention-tile-meta">
+              <span class="bag-id">#{{ bag[1] }}</span>
+              <span class="bag-status bag-status-needs_attention attention-reason" title="{{ bag[7] }}">{{ bag[7] }}</span>
+            </div>
+
+          </button>
+
+        {% endfor %}
+
+      </div>
 
     {% endif %}
 
+  </div>
+</div>
 
-    <div class="bag-info">
+{% for bag in bags %}
 
-      <div class="short-id">
-        Bag #{{ bag[1] }}
+  <div class="modal-overlay" id="bag-modal-{{ bag[0] }}" hidden>
+    <div class="modal-box bag-card">
+
+      <button type="button" class="modal-close" data-close-modal aria-label="Close">&times;</button>
+
+      {% if bag[3] %}
+        <img src="/{{ bag[3] }}" class="bag-photo" alt="Bag {{ bag[1] }}">
+      {% endif %}
+
+      <div class="short-id">#{{ bag[1] }}</div>
+
+      <div class="bag-info">
+
+        <strong>Database ID:</strong> {{ bag[0] }}<br>
+
+        <strong>Barcode:</strong>
+        {% if bag[2] %}
+          <span class="barcode">{{ bag[2] }}</span>
+        {% else %}
+          No barcode detected
+        {% endif %}
+        <br>
+
+        <strong>Flight:</strong>
+        {% if bag[5] %}
+          {{ bag[5] }} → {{ bag[6] }}
+        {% else %}
+          No flight assigned
+        {% endif %}
+        <br>
+
+        <strong>Reason:</strong> {{ bag[7] }}<br>
+
+        <strong>Time:</strong> {{ bag[8] | datetime }}
+
       </div>
 
-      <strong>Database ID:</strong>
-      {{ bag[0] }}
-      <br>
+      <div class="bag-card-actions">
 
-      <strong>Barcode:</strong>
+        <form action="/attention/resolve" method="POST">
+          <input type="hidden" name="bag_id" value="{{ bag[0] }}">
+          <button type="submit" class="btn btn-good btn-block">Mark as Resolved</button>
+        </form>
 
-      {% if bag[2] %}
-        <span class="barcode">
-          {{ bag[2] }}
-        </span>
-      {% else %}
-        <span>
-          No barcode detected
-        </span>
-      {% endif %}
+        <form action="/attention/reject" method="POST">
+          <input type="hidden" name="bag_id" value="{{ bag[0] }}">
+          <button type="submit" class="btn btn-danger btn-block">Reject Bag</button>
+        </form>
 
-      <br>
+      </div>
 
-      <strong>Flight:</strong>
+      <form action="/attention/assign" method="POST" class="assign-form">
 
-      {% if bag[5] %}
-        {{ bag[5] }} → {{ bag[6] }}
-      {% else %}
-        <span>No flight assigned</span>
-      {% endif %}
+        <input type="hidden" name="bag_id" value="{{ bag[0] }}">
 
-      <br>
-
-      <strong>Reason:</strong>
-      {{ bag[7] }}
-
-      <br>
-
-      <strong>Time:</strong>
-      {{ bag[8] | datetime }}
-
-    </div>
-
-
-    <div class="bag-card-actions">
-
-      <!-- Resolve -->
-
-      <form
-        action="/attention/resolve"
-        method="POST"
-      >
-
-        <input
-          type="hidden"
-          name="bag_id"
-          value="{{ bag[0] }}"
-        />
-
-        <button
-          type="submit"
-          class="btn btn-good btn-block"
-        >
-          Mark as Resolved
-        </button>
-
-      </form>
-
-
-      <!-- Reject -->
-
-      <form
-        action="/attention/reject"
-        method="POST"
-      >
-
-        <input
-          type="hidden"
-          name="bag_id"
-          value="{{ bag[0] }}"
-        />
-
-        <button
-          type="submit"
-          class="btn btn-danger btn-block"
-        >
-          Reject Bag
-        </button>
-
-      </form>
-
-
-      <!-- Assign flight -->
-
-      <form
-        action="/attention/assign"
-        method="POST"
-        class="assign-form"
-      >
-
-        <input
-          type="hidden"
-          name="bag_id"
-          value="{{ bag[0] }}"
-        />
-
-        <label>
-          Assign Flight
-        </label>
+        <label>Assign Flight</label>
 
         <select name="flight_id">
-
           {% for f in flights %}
-
-            <option value="{{ f[0] }}">
-              {{ f[1] }} → {{ f[2] }}
-            </option>
-
+            <option value="{{ f[0] }}">{{ f[1] }} → {{ f[2] }}</option>
           {% endfor %}
-
         </select>
 
-        <button
-          type="submit"
-          class="btn btn-primary"
-        >
-          Assign Flight
-        </button>
+        <button type="submit" class="btn btn-primary btn-block">Assign Flight</button>
 
       </form>
 
     </div>
-
   </div>
 
 {% endfor %}
 
+<script>
+(function () {
 
-{% if bags|length == 0 %}
+  document.querySelectorAll("[data-bag-modal]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var modal = document.getElementById(btn.dataset.bagModal);
+      if (modal) modal.hidden = false;
+    });
+  });
 
-  <p class="empty-state">
-    No bags need attention.
-  </p>
+  document.querySelectorAll(".modal-overlay").forEach(function (overlay) {
 
-{% endif %}
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) overlay.hidden = true;
+    });
 
-  </div>
-</div>
+    var closeBtn = overlay.querySelector("[data-close-modal]");
+
+    if (closeBtn) {
+      closeBtn.addEventListener("click", function () {
+        overlay.hidden = true;
+      });
+    }
+
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      document.querySelectorAll(".modal-overlay").forEach(function (overlay) {
+        overlay.hidden = true;
+      });
+    }
+  });
+
+})();
+</script>
+
 </body>
 </html>

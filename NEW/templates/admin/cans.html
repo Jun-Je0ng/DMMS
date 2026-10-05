@@ -24,15 +24,7 @@
 
   <div class="page-body">
 
-    <table>
-      <tr>
-        <th>CAN ID</th>
-        <th>MUL</th>
-        <th>Flight</th>
-        <th>Save</th>
-      </tr>
-
-      {% for can in cans %}
+    {% macro can_row(can) %}
       <tr>
         <form action="/admin/cans/update" method="POST">
           <td>{{ can[0] }}</td>
@@ -40,8 +32,9 @@
           <!-- MUL Dropdown -->
           <td>
             <select name="mul_id">
+              <option value="" {% if can[1] is none %}selected{% endif %}>— None —</option>
               {% for m in muls %}
-                <option value="{{ m[0] }}" {% if m[0] == can[1] %}selected{% endif %}>
+                <option value="{{ m[0] }}" {% if can[1] == m[0] %}selected{% endif %}>
                   {{ m[1] }}
                 </option>
               {% endfor %}
@@ -51,8 +44,9 @@
           <!-- Flight Dropdown -->
           <td>
             <select name="flight_id">
+              <option value="" {% if can[2] is none %}selected{% endif %}>No flight assigned</option>
               {% for f in flights %}
-                <option value="{{ f[0] }}" {% if f[0] == can[2] %}selected{% endif %}>
+                <option value="{{ f[0] }}" {% if can[2] == f[0] %}selected{% endif %}>
                   {{ f[1] }} → {{ f[2] }}
                 </option>
               {% endfor %}
@@ -65,8 +59,47 @@
           </td>
         </form>
       </tr>
-      {% endfor %}
-    </table>
+    {% endmacro %}
+
+    <div class="can-lists">
+
+      <section class="can-list-col">
+        <h2 class="card-title">Active CANs <span class="muted">— assigned to a MUL</span></h2>
+        <table>
+          <tr>
+            <th>CAN ID</th>
+            <th>MUL</th>
+            <th>Flight</th>
+            <th>Save</th>
+          </tr>
+          {% for can in active_cans %}
+            {{ can_row(can) }}
+          {% endfor %}
+          {% if active_cans|length == 0 %}
+            <tr><td colspan="4" class="empty-state">No active CANs.</td></tr>
+          {% endif %}
+        </table>
+      </section>
+
+      <section class="can-list-col">
+        <h2 class="card-title">Inactive CANs <span class="muted">— not assigned to a MUL</span></h2>
+        <table>
+          <tr>
+            <th>CAN ID</th>
+            <th>MUL</th>
+            <th>Flight</th>
+            <th>Save</th>
+          </tr>
+          {% for can in inactive_cans %}
+            {{ can_row(can) }}
+          {% endfor %}
+          {% if inactive_cans|length == 0 %}
+            <tr><td colspan="4" class="empty-state">No inactive CANs.</td></tr>
+          {% endif %}
+        </table>
+      </section>
+
+    </div>
 
     <section class="card" style="max-width: 520px;">
       <h2 class="card-title">Add CAN</h2>
@@ -75,7 +108,8 @@
 
         <div class="form-field">
           <label for="add-can-mul">MUL</label>
-          <select id="add-can-mul" name="mul_id" required>
+          <select id="add-can-mul" name="mul_id">
+            <option value="">— None —</option>
             {% for m in muls %}
               <option value="{{ m[0] }}">{{ m[1] }}</option>
             {% endfor %}
