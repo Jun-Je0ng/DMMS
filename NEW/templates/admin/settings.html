@@ -25,6 +25,28 @@
   <div class="page-body">
 
     <div class="card">
+      <h2 class="card-title">Operating System</h2>
+      <p class="muted" style="margin: 0 0 12px; font-size: 12px;">
+        Serial ports and camera index are stored separately for each
+        system, so you can switch between a Windows laptop and the
+        Raspberry Pi without retyping them. "Auto" picks the right one for
+        whatever machine this server is running on. Restart the hardware
+        process (app.py) after changing this.
+      </p>
+      <form action="/admin/settings/os" method="POST" class="actions">
+        <select name="os_profile" onchange="this.form.submit()">
+          <option value="auto" {% if os_choice == "auto" %}selected{% endif %}>Auto-detect</option>
+          {% for key, label in os_profiles.items() %}
+          <option value="{{ key }}" {% if os_choice == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <span class="muted" style="font-size: 12px;">
+          Editing the <strong>{{ os_profiles[os_active] }}</strong> values below.
+        </span>
+      </form>
+    </div>
+
+    <div class="card">
       <h2 class="card-title">Camera Detection</h2>
       <p class="muted" style="margin: 0 0 12px; font-size: 12px;">
         Scans camera indices 0–4 for devices that can be opened. Click a
@@ -44,7 +66,7 @@
     <div class="card">
       <h2 class="card-title">Serial Port Scanner</h2>
       <p class="muted" style="margin: 0 0 12px; font-size: 12px;">
-        Lists COM ports currently connected. Click "Use for Laser" or
+        Lists serial ports currently connected (COM ports on Windows, /dev/tty* on Linux). Click "Use for Laser" or
         "Use for Barcode" to fill in that field below.
       </p>
       <div class="actions" style="margin-bottom: 12px;">

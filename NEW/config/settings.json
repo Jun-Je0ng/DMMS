@@ -1,14 +1,24 @@
 {
+    "os_profile": "auto",
     "mul_settings": {
         "1": {
-            "laser_serial_port": "COM5",
-            "barcode_serial_port": "COM1",
-            "camera_device_index": 1,
             "camera_resolution": [
                 2560,
                 1440
             ],
-            "laser_timeout": 2.0
+            "laser_timeout": 2.0,
+            "os_hardware": {
+                "windows": {
+                    "laser_serial_port": "COM5",
+                    "barcode_serial_port": "COM1",
+                    "camera_device_index": 1
+                },
+                "linux": {
+                    "laser_serial_port": "/dev/ttyUSB0",
+                    "barcode_serial_port": "/dev/ttyACM0",
+                    "camera_device_index": 0
+                }
+            }
         }
     },
     "active_mul": 1

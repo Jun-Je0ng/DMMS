@@ -5,7 +5,7 @@ from config.settings import settings
 
 
 mul_id = settings.get("active_mul")
-mul_cfg = settings.get("mul_settings")[str(mul_id)]
+mul_cfg = settings.mul_cfg(mul_id)
 
 camera_index = mul_cfg["camera_device_index"]
 resolution = mul_cfg["camera_resolution"]

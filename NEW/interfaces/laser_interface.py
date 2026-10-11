@@ -3,7 +3,7 @@ from config.settings import settings
 
 
 mul_id = settings.get("active_mul")
-mul_cfg = settings.get("mul_settings")[str(mul_id)]
+mul_cfg = settings.mul_cfg(mul_id)
 
 laser_port = mul_cfg["laser_serial_port"]
 barcode_port = mul_cfg["barcode_serial_port"]

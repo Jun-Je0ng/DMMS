@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, jsonify, Response
 from database.db import get_connection
-from config.settings import settings
+from config.settings import settings, OS_PROFILES
 from datetime import datetime
 from pathlib import Path
 import socket
@@ -1380,15 +1380,27 @@ def admin_settings():
 
     mul_id = settings.get("active_mul")
 
-    mul_cfg = settings.get(
-        "mul_settings"
-    )[str(mul_id)]
-
     return render_template(
         "admin/settings.html",
         mul_id=mul_id,
-        cfg=mul_cfg
+        cfg=settings.mul_cfg(mul_id),
+        os_profiles=OS_PROFILES,
+        os_choice=settings.os_choice(),
+        os_active=settings.active_os_profile()
     )
+
+
+@app.route("/admin/settings/os", methods=["POST"])
+def admin_settings_os():
+
+    choice = request.form.get("os_profile", "auto")
+
+    if choice != "auto" and choice not in OS_PROFILES:
+        return "Unknown OS profile", 400
+
+    settings.set_os_choice(choice)
+
+    return redirect("/admin/settings")
 
 
 @app.route("/admin/settings/update", methods=["POST"])
@@ -1397,18 +1409,13 @@ def admin_settings_update():
     mul_id = settings.get("active_mul")
     key = str(mul_id)
 
-    settings.data["mul_settings"][key][
-        "laser_serial_port"
-    ] = request.form["laser_serial_port"]
-
-    settings.data["mul_settings"][key][
-        "barcode_serial_port"
-    ] = request.form["barcode_serial_port"]
-
-    settings.data["mul_settings"][key][
-        "camera_device_index"
-    ] = int(
-        request.form["camera_device_index"]
+    # OS-specific values go into the active profile's block, so switching
+    # between Windows and Raspberry Pi never overwrites the other one.
+    settings.set_mul_hardware(
+        mul_id,
+        laser_serial_port=request.form["laser_serial_port"],
+        barcode_serial_port=request.form["barcode_serial_port"],
+        camera_device_index=int(request.form["camera_device_index"])
     )
 
     settings.data["mul_settings"][key][
