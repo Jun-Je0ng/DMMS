@@ -1,0 +1,56 @@
+cat > ~/DMMS/NEW/launch_dmms.sh << 'EOF'
+#!/bin/bash
+APP_DIR="$HOME/DMMS/NEW"
+PORT=5000
+MUL_URL="http://localhost:$PORT/mul/1"
+ATTN_URL="http://localhost:$PORT/attention"
+
+cd "$APP_DIR" || exit 1
+mkdir -p logs
+source venv/bin/activate
+
+# start both programs in the background, logging to files
+python web.py > logs/web.log 2>&1 &
+WEB_PID=$!
+python app.py > logs/app.log 2>&1 &
+APP_PID=$!
+
+# stop everything when this window closes or Ctrl+C is pressed
+cleanup() {
+  kill $WEB_PID $APP_PID 2>/dev/null
+  pkill -f "user-data-dir=/tmp/dmms-" 2>/dev/null
+}
+trap cleanup EXIT INT TERM HUP
+
+# wait up to 30s for the web server to answer
+for i in $(seq 1 30); do
+  curl -s -o /dev/null "$MUL_URL" && break
+  sleep 1
+done
+
+# screen size: MUL gets 65% (left), attention queue gets 35% (right)
+RES=$(xrandr 2>/dev/null | awk '/\*/{print $1; exit}')
+W=${RES%x*}; H=${RES#*x}
+[ -z "$W" ] && W=1920 && H=1080
+LEFT=$((W*65/100)); RIGHT=$((W-LEFT))
+
+BROWSER=$(command -v chromium-browser || command -v chromium)
+$BROWSER --app="$MUL_URL"  --user-data-dir=/tmp/dmms-left  --no-first-run \
+  --window-position=0,0 --window-size=$LEFT,$H &
+$BROWSER --app="$ATTN_URL" --user-data-dir=/tmp/dmms-right --no-first-run \
+  --window-position=$LEFT,0 --window-size=$RIGHT,$H &
+
+echo "DMMS running. Close this window or press Ctrl+C to stop everything."
+echo "Logs: $APP_DIR/logs/web.log and app.log"
+wait $WEB_PID
+EOF
+chmod +x ~/DMMS/NEW/launch_dmms.sh
+
+cat > ~/Desktop/DMMS.desktop << EOF
+[Desktop Entry]
+Type=Application
+Name=DMMS
+Exec=$HOME/DMMS/NEW/launch_dmms.sh
+Terminal=true
+EOF
+chmod +x ~/Desktop/DMMS.desktop
