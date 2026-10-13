@@ -7,6 +7,7 @@ Attention on the right 40%.
 
     python3 run.py
 
+Any DMMS already running (from this folder) is stopped first.
 Ctrl+C stops everything.
 """
 
@@ -106,11 +107,72 @@ def port_in_use():
         return s.connect_ex(("127.0.0.1", SERVER_PORT)) == 0
 
 
+DMMS_SCRIPTS = ("run.py", "web.py", "app.py")
+
+# Browser profiles used for the DMMS windows - ours, plus the
+# /tmp/dmms-left / /tmp/dmms-right ones from launch_dmms.sh.
+DMMS_BROWSER_MARKERS = ("dmms-browser", "/tmp/dmms-")
+
+
+def find_old_dmms():
+    """
+    PIDs of DMMS processes already running: run.py / web.py / app.py
+    started from this folder (other projects' app.py are left alone),
+    and the browser windows they opened. Linux only (reads /proc).
+    """
+    pids = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit() or int(entry.name) == os.getpid():
+            continue
+        try:
+            args = (entry / "cmdline").read_bytes().decode().split("\0")
+
+            if any(a.startswith("--user-data-dir=") and m in a
+                   for a in args for m in DMMS_BROWSER_MARKERS):
+                pids.append(int(entry.name))
+            elif ("python" in Path(args[0]).name
+                    and any(Path(a).name in DMMS_SCRIPTS for a in args[1:])
+                    and (entry / "cwd").resolve() == HERE):
+                pids.append(int(entry.name))
+        except (OSError, IndexError):
+            continue   # process exited, or belongs to another user
+    return pids
+
+
+def stop_old_dmms():
+    """Kill any DMMS already running so this one can take port 5000."""
+    if not sys.platform.startswith("linux"):
+        return
+
+    pids = find_old_dmms()
+    if not pids:
+        return
+
+    print(f"[RUN] Stopping DMMS that was already running ({len(pids)} processes)...")
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+
+    # Give them a few seconds, then force whatever is left.
+    deadline = time.time() + 5
+    while time.time() < deadline and (port_in_use() or find_old_dmms()):
+        time.sleep(0.3)
+    for pid in find_old_dmms():
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    time.sleep(0.5)
+
+
 def main():
+    stop_old_dmms()
+
     if port_in_use():
-        print(f"[RUN] Port {SERVER_PORT} is already in use - an old web.py "
-              f"is probably still running.\n"
-              f"      Stop it with:  pkill -f web.py   then run this again.")
+        print(f"[RUN] Port {SERVER_PORT} is in use by something other than "
+              f"DMMS - stop that program and run this again.")
         return
 
     env = dict(os.environ, DMMS_NO_BROWSER="1")
