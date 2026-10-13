@@ -104,6 +104,14 @@
       </div>
 
       <div class="form-field">
+        <label>Photo Rotation</label>
+        <select id="camera_rotate_180" name="camera_rotate_180">
+          <option value="0" {% if not cfg.camera_rotate_180 %}selected{% endif %}>None</option>
+          <option value="1" {% if cfg.camera_rotate_180 %}selected{% endif %}>Rotate 180°</option>
+        </select>
+      </div>
+
+      <div class="form-field">
         <label>Laser Timeout (seconds)</label>
         <input type="number" step="0.1" name="laser_timeout" value="{{ cfg.laser_timeout }}">
       </div>
@@ -124,6 +132,7 @@
   var camIndexInput = document.getElementById("camera_device_index");
   var previewWrap = document.getElementById("preview-wrap");
   var previewImg = document.getElementById("camera-preview-img");
+  var rotateSelect = document.getElementById("camera_rotate_180");
 
   function renderCameras(cameras) {
     camList.innerHTML = "";
@@ -177,7 +186,8 @@
 
     camStatus.textContent = "Loading preview…";
     previewWrap.hidden = false;
-    previewImg.src = "/api/camera-preview?index=" + encodeURIComponent(index) + "&t=" + Date.now();
+    previewImg.src = "/api/camera-preview?index=" + encodeURIComponent(index) +
+      "&rotate=" + rotateSelect.value + "&t=" + Date.now();
 
     previewImg.onload = function () {
       camStatus.textContent = "Preview from index " + index + ".";
@@ -186,6 +196,14 @@
       camStatus.textContent = "Could not read from camera " + index + ".";
       previewWrap.hidden = true;
     };
+  });
+
+  // Re-run the preview when rotation changes so you can see the effect
+  // before saving.
+  rotateSelect.addEventListener("change", function () {
+    if (!previewWrap.hidden) {
+      document.getElementById("btn-preview-camera").click();
+    }
   });
 
   // ---- Serial port scanner -------------------------------------------

@@ -27,6 +27,12 @@ def take_photo():
             f"Failed to capture image from camera {camera_index}"
         )
 
+    # Read rotation fresh each photo so changing it on the settings page
+    # takes effect without restarting app.py.
+    settings.reload()
+    if settings.mul_cfg(mul_id).get("camera_rotate_180"):
+        frame = cv2.rotate(frame, cv2.ROTATE_180)
+
     filename = (
         f"static/bag_photos/{int(time.time())}.jpg"
     )

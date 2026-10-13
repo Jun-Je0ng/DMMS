@@ -39,6 +39,10 @@ class Settings:
         with open(SETTINGS_PATH, "r") as f:
             self.data = json.load(f)
 
+    def reload(self):
+        """Re-read settings.json (picks up changes saved by web.py)."""
+        self._load()
+
     def save(self):
         with open(SETTINGS_PATH, "w") as f:
             json.dump(self.data, f, indent=4)

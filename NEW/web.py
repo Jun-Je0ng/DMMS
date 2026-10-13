@@ -3,7 +3,10 @@ from database.db import get_connection
 from config.settings import settings, OS_PROFILES
 from datetime import datetime
 from pathlib import Path
+import os
 import socket
+import threading
+import webbrowser
 import cv2
 import serial.tools.list_ports
 
@@ -1426,6 +1429,10 @@ def admin_settings_update():
     ]
 
     settings.data["mul_settings"][key][
+        "camera_rotate_180"
+    ] = request.form.get("camera_rotate_180") == "1"
+
+    settings.data["mul_settings"][key][
         "laser_timeout"
     ] = float(
         request.form["laser_timeout"]
@@ -1465,6 +1472,7 @@ def api_cameras():
 def api_camera_preview():
 
     index = request.args.get("index", type=int)
+    rotate = request.args.get("rotate") == "1"
 
     if index is None:
         return "Missing index", 400
@@ -1480,6 +1488,9 @@ def api_camera_preview():
 
         if not ret or frame is None:
             return f"Failed to read from camera {index}", 500
+
+        if rotate:
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
 
         ok, buffer = cv2.imencode(".jpg", frame)
 
@@ -1701,7 +1712,26 @@ def api_server_info():
 # START SERVER
 # ============================================================
 
+def open_browser_windows():
+    """
+    Pop open the MUL board and Needs Attention for the active MUL as
+    two separate browser windows, so nobody has to click the link
+    printed in the terminal.
+    """
+    mul_id = settings.get("active_mul")
+    base = f"http://127.0.0.1:{SERVER_PORT}"
+    webbrowser.open_new(f"{base}/mul/{mul_id}")
+    webbrowser.open_new(f"{base}/attention?mul_id={mul_id}")
+
+
 if __name__ == "__main__":
+    # Short delay so the server is listening before the browser asks
+    # for the pages.
+    # run.py sets DMMS_NO_BROWSER because it opens (and tiles) the
+    # windows itself.
+    if not os.environ.get("DMMS_NO_BROWSER"):
+        threading.Timer(1.5, open_browser_windows).start()
+
     app.run(
         # 0.0.0.0 (not 127.0.0.1) so phones on the same network can
         # actually reach this server — required for the worker QR code
