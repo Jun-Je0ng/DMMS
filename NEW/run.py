@@ -175,9 +175,7 @@ def main():
               f"DMMS - stop that program and run this again.")
         return
 
-    env = dict(os.environ, DMMS_NO_BROWSER="1")
-
-    web = subprocess.Popen([sys.executable, "web.py"], cwd=HERE, env=env)
+    web = subprocess.Popen([sys.executable, "web.py"], cwd=HERE)
     hardware = subprocess.Popen([sys.executable, "app.py"], cwd=HERE)
     browsers = []
 
