@@ -1,6 +1,7 @@
 import time
 import traceback
 
+
 from interfaces.laser_interface import LaserInterface
 from interfaces.barcode_interface import BarcodeInterface
 from hardware.event_manager import EventManager
@@ -37,7 +38,8 @@ def main():
         while True:
             # --- LASER EVENT ---
             if laser.read_laser():
-                print("[LASER] TRIGGER detected")
+                ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                print(f"[LASER] TRIGGER detected at {ts}")
                 events.handle_laser_trigger()
 
             # --- BARCODE EVENT ---

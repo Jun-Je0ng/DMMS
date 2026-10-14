@@ -10,7 +10,7 @@ mkdir -p logs
 source venv/bin/activate
 
 # start both programs in the background, logging to files
-python web.py > logs/web.log 2>&1 &
+DMMS_NO_BROWSER=1 python web.py > logs/web.log 2>&1 &
 WEB_PID=$!
 python app.py > logs/app.log 2>&1 &
 APP_PID=$!

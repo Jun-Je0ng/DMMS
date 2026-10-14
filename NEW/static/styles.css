@@ -557,6 +557,16 @@ h1, h2, h3 { color: var(--text-primary); }
   color: var(--fids-yellow);
 }
 
+.bag-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex: 1;
+  text-align: center;
+}
+
 .bag-status {
   font-size: 10px;
   font-weight: 700;

@@ -45,6 +45,18 @@ def format_datetime(timestamp):
 
 
 
+@app.template_filter("clock")
+def format_clock(timestamp):
+    """Local time of day (HH:MM:SS) for compact tiles."""
+    if timestamp is None:
+        return ""
+
+    return datetime.fromtimestamp(
+        int(timestamp)
+    ).strftime("%H:%M:%S")
+
+
+
 # ============================================================
 # HOME — choose which MUL's board to view
 # ============================================================
@@ -139,6 +151,7 @@ def mul_board(mul_id):
             b.photo_path,
             b.flight_id,
             b.mul_id,
+            b.scanned_at,
             s.status,
             c.can_id
         FROM bags b
@@ -196,6 +209,7 @@ def mul_board(mul_id):
             photo_path,
             flight_id,
             mul_id_,
+            scanned_at,
             status,
             can_id
         ) = b
@@ -207,6 +221,7 @@ def mul_board(mul_id):
                 "barcode": barcode,
                 "mul_id": mul_id_,
                 "photo_path": photo_path,
+                "scanned_at": scanned_at,
                 "status": status or "scanned"
             })
 

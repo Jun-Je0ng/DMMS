@@ -136,6 +136,13 @@
                       #{{ bag.short_id }}
                     </span>
 
+                    <span
+                      class="bag-time"
+                      title="Scanned {{ bag.scanned_at|datetime }}"
+                    >
+                      {{ bag.scanned_at|clock }}
+                    </span>
+
                     <span class="bag-status">
                       {{ bag.status }}
                     </span>
