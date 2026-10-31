@@ -1,5 +1,5 @@
 {
-    "os_profile": "auto",
+    "os_profile": "windows",
     "mul_settings": {
         "1": {
             "camera_resolution": [
@@ -9,9 +9,9 @@
             "laser_timeout": 2.0,
             "os_hardware": {
                 "windows": {
-                    "laser_serial_port": "COM5",
+                    "laser_serial_port": "COM4",
                     "barcode_serial_port": "COM1",
-                    "camera_device_index": 1
+                    "camera_device_index": 2
                 },
                 "linux": {
                     "laser_serial_port": "/dev/ttyUSB0",
@@ -19,7 +19,7 @@
                     "camera_device_index": 0
                 }
             },
-            "camera_rotate_180": false
+            "camera_rotate_180": true
         }
     },
     "active_mul": 1
