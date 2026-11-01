@@ -1,5 +1,25 @@
+import re
 import threading
+import time
+from pathlib import Path
 from pynput import keyboard
+
+
+# While the /admin/register page is open it refreshes this file every few
+# seconds; keystrokes are ignored so registering tags doesn't create bags.
+REGISTER_FLAG = Path(__file__).resolve().parent.parent / ".register_mode"
+
+# Real bag tags (e.g. 10-digit IATA licence plates) as well as our own
+# "B-" demo codes. Must be 8+ letters/digits/hyphens containing a digit,
+# so stray typing ("worker/1", "hello") is still ignored.
+TAG_PATTERN = re.compile(r"(?=.*\d)[A-Za-z0-9\-]{8,}")
+
+
+def register_mode_active():
+    try:
+        return time.time() - REGISTER_FLAG.stat().st_mtime < 10
+    except OSError:
+        return False
 
 
 class BarcodeInterface:
@@ -17,6 +37,10 @@ class BarcodeInterface:
         self.listener.start()
 
     def _on_press(self, key):
+        if register_mode_active():
+            self.buffer = []
+            return
+
         with self._lock:
 
             # ------------------------------------------------
@@ -50,7 +74,10 @@ class BarcodeInterface:
                 #   B-ABC123
                 # ------------------------------------------------
 
-                if not barcode.startswith("B-"):
+                if not (
+                    barcode.startswith("B-")
+                    or TAG_PATTERN.fullmatch(barcode)
+                ):
                     print(
                         f"[BARCODE] Ignored non-bag read: {barcode}"
                     )

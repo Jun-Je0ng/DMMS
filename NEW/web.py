@@ -10,6 +10,10 @@ import serial.tools.list_ports
 
 app = Flask(__name__)
 
+# JSON API for adding/managing flights, CANs, bag routes, bags (see API.md)
+from api import api_bp
+app.register_blueprint(api_bp)
+
 SERVER_PORT = 5000
 
 
@@ -901,6 +905,15 @@ def assign_flight():
 @app.route("/admin")
 def admin_home():
     return render_template("admin/dashboard.html")
+
+
+# ============================================================
+# ADMIN — REGISTER BAG TAGS (scan a tag, attach it to a flight)
+# ============================================================
+
+@app.route("/admin/register")
+def admin_register():
+    return render_template("admin/register.html")
 
 
 # ============================================================

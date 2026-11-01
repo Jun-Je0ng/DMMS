@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Register Bag Tags</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .reg-grid { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 800px) { .reg-grid { grid-template-columns: 1fr; } }
+    .panel { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 18px; margin-bottom: 18px; }
+    .panel h2 { margin: 0 0 12px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
+    .panel select, .panel input[type=text] { width: 100%; box-sizing: border-box; }
+    .scan-input { font-size: 28px !important; padding: 16px !important; text-align: center; letter-spacing: .05em; }
+    .flash { border-radius: 8px; padding: 18px; text-align: center; border: 1px solid var(--border); min-height: 92px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+    .flash .big { font-size: 26px; font-weight: 700; }
+    .flash.ok   { background: var(--good-bg); border-color: rgba(0,160,90,.6); }
+    .flash.warn { background: rgba(212,146,0,.18); border-color: rgba(212,146,0,.7); }
+    .flash.err  { background: var(--critical-bg); border-color: rgba(184,48,48,.7); }
+    .flight-chip { font-size: 30px; font-weight: 700; color: var(--fids-yellow); }
+    .stat { font-size: 14px; color: var(--text-secondary); }
+    .banner { padding: 10px 12px; border-radius: 6px; margin-top: 10px; font-size: 14px; }
+    .banner.warn { background: rgba(212,146,0,.18); border: 1px solid rgba(212,146,0,.6); }
+    table.log { width: 100%; }
+    table.log td, table.log th { padding: 8px 10px; }
+    .row-actions { display: flex; gap: 8px; margin-top: 10px; }
+    details summary { cursor: pointer; color: var(--text-secondary); }
+    .inline-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .mul-chip { display:inline-block; margin-left:6px; padding:3px 10px; border-radius:999px; border:1px solid var(--border-strong); color: var(--text-primary); font-size:13px; font-weight:600; vertical-align: middle; }
+    .tag { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header class="topbar" style="margin: 0 24px;">
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <div class="brand-text">
+        <h1>Register Bag Tags</h1>
+        <p class="muted">Admin · Scan a tag to attach it to a flight</p>
+      </div>
+    </div>
+    <div class="topbar-nav">
+      <a class="btn" href="/admin/flights">Flights</a>
+      <a class="btn" href="/admin">Admin Dashboard</a>
+    </div>
+  </header>
+
+  <div class="page-body">
+    <div class="reg-grid">
+
+      <!-- LEFT: setup -->
+      <div>
+        <div class="panel">
+          <h2>1 · Flight</h2>
+          <select id="flightSelect"></select>
+          <div id="flightInfo" class="stat" style="margin-top:10px"></div>
+          <div id="canWarn"></div>
+
+          <details style="margin-top:14px" id="newFlightBox">
+            <summary>+ New flight</summary>
+            <div class="inline-fields">
+              <input type="text" id="nfNumber" placeholder="Flight no. (QF401)">
+              <input type="text" id="nfDest" placeholder="Destination (Perth)">
+              <input type="text" id="nfGate" placeholder="Gate (optional)">
+              <input type="text" id="nfTime" placeholder="Departs (optional) 2026-10-30 14:00">
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-good" id="nfSave" type="button">Create &amp; select</button>
+            </div>
+          </details>
+
+          <div id="mulRow" style="margin-top:14px; display:none">
+            <label class="muted" for="mulSelect">MUL</label>
+            <select id="mulSelect"></select>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>2 · Scan</h2>
+          <input type="text" id="scan" class="scan-input" autocomplete="off" autocapitalize="off"
+                 spellcheck="false" placeholder="Scan bag tag…">
+          <div class="muted" style="margin-top:8px;font-size:13px">
+            Scan Barcodes for seleted flight.
+          </div>
+          <div style="margin-top:14px" id="flash" class="flash">
+            <span class="muted">Waiting for first scan</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: log -->
+      <div class="panel">
+        <h2>Registered this session · <span id="count">0</span></h2>
+        <table class="log">
+          <thead><tr><th>Time</th><th>Tag</th><th>Flight</th><th>Dest</th><th></th></tr></thead>
+          <tbody id="log"><tr><td colspan="5" class="empty-state">Nothing scanned yet.</td></tr></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "/api/v1";
+const $ = id => document.getElementById(id);
+let flights = [], cans = [], muls = [], count = 0;
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+};
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    headers: {"Content-Type": "application/json"}, ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function selectedFlight(){ return flights.find(f => String(f.flight_id) === $("flightSelect").value); }
+function mulId(){ return Number($("mulSelect").value) || 1; }
+
+async function load() {
+  [flights, muls, cans] = await Promise.all([api("/flights"), api("/muls"), api("/cans")]);
+  const sel = $("flightSelect"), prev = sel.value || store.get("reg_flight");
+  sel.innerHTML = flights.length
+    ? flights.map(f => `<option value="${f.flight_id}">${esc(f.flight_number)} → ${esc(f.destination || "?")}${f.departure_time ? " · " + esc(f.departure_time) : ""}</option>`).join("")
+    : `<option value="">No flights — create one below</option>`;
+  if (prev && flights.some(f => String(f.flight_id) === String(prev))) sel.value = prev;
+  if (!flights.length) $("newFlightBox").open = true;
+
+  $("mulSelect").innerHTML = muls.map(m => `<option value="${m.mul_id}">${esc(m.mul_name)}</option>`).join("");
+  const pm = store.get("reg_mul"); if (pm) $("mulSelect").value = pm;
+  $("mulRow").style.display = muls.length > 1 ? "block" : "none";
+  renderFlight();
+}
+
+function flightMuls(f) {
+  // MULs this flight has a CAN in (inactive CANs with no MUL don't count)
+  const ids = [...new Set(cans.filter(c => c.flight_id === f.flight_id && c.mul_id != null).map(c => c.mul_id))];
+  return ids.sort((a, b) => a - b);
+}
+function mulName(id) { const m = muls.find(x => x.mul_id === id); return m ? m.mul_name : "MUL " + id; }
+
+function renderFlight() {
+  const f = selectedFlight();
+  if (!f) { $("flightInfo").innerHTML = ""; $("canWarn").innerHTML = ""; return; }
+
+  // Route tags to the MUL this flight's CAN is on (keep current pick if it's one of them)
+  const on = flightMuls(f);
+  if (on.length && !on.includes(mulId())) $("mulSelect").value = on[0];
+  store.set("reg_flight", f.flight_id); store.set("reg_mul", mulId());
+
+  const mulLabel = on.length
+    ? `<span class="mul-chip">${on.map(id => esc(mulName(id))).join(", ")}</span>`
+    : "";
+  $("flightInfo").innerHTML = `<span class="flight-chip">${esc(f.flight_number)}</span> &nbsp;${esc(f.destination || "")}${f.gate_number ? " · Gate " + esc(f.gate_number) : ""} ${mulLabel}`;
+
+  $("canWarn").innerHTML = on.length ? "" : `
+    <div class="banner warn">No CAN assigned to ${esc(f.flight_number)}.
+      <div class="row-actions"><button class="btn btn-good" id="mkCan" type="button">Create CAN for ${esc(f.flight_number)}${muls.length > 1 ? " on " + esc(mulName(mulId())) : ""}</button></div>
+    </div>`;
+  const b = $("mkCan");
+  if (b) b.onclick = async () => {
+    await api("/cans", {method: "POST", body: {mul_id: mulId(), flight_id: f.flight_id}});
+    cans = await api("/cans"); renderFlight(); $("scan").focus();
+  };
+}
+
+function flash(kind, big, small) {
+  const el = $("flash");
+  el.className = "flash " + kind;
+  el.innerHTML = `<div class="big">${big}</div><div class="stat">${small || ""}</div>`;
+}
+
+function logRow(r) {
+  if (count === 0) $("log").innerHTML = "";
+  count++; $("count").textContent = count;
+  const tr = document.createElement("tr");
+  tr.innerHTML = `<td>${new Date().toLocaleTimeString()}</td><td class="tag">${esc(r.barcode)}</td>
+    <td>${esc(r.flight_number)}</td><td>${esc(r.final_destination)}</td>
+    <td><button class="btn btn-danger" type="button">Undo</button></td>`;
+  tr.querySelector("button").onclick = async () => {
+    try {
+      await api("/bag-routes/" + encodeURIComponent(r.barcode), {method: "DELETE"});
+      tr.remove(); count--; $("count").textContent = count;
+      flash("warn", "Removed", esc(r.barcode));
+    } catch (e) { flash("err", "Undo failed", esc(e.message)); }
+    $("scan").focus();
+  };
+  $("log").prepend(tr);
+}
+
+let busy = false;
+async function scan(code) {
+  const f = selectedFlight();
+  if (!f) { flash("err", "Pick a flight first", ""); return; }
+  if (busy) return; busy = true;
+  try {
+    const r = await api("/register-scan", {method: "POST",
+      body: {barcode: code, flight_id: f.flight_id, mul_id: mulId()}});
+    const note = r.already_on_line ? " · ⚠ already scanned on the line — bag will not re-register" : "";
+    if (r.status === "registered") { flash("ok", `✓ ${esc(r.barcode)}`, `→ ${esc(r.flight_number)} · ${esc(r.final_destination || "")}`); logRow(r); }
+    else if (r.status === "reassigned") { flash("warn", `↻ ${esc(r.barcode)}`, `moved ${esc(r.previous_flight || "?")} → ${esc(r.flight_number)}${note}`); logRow(r); }
+    else flash("warn", `Already registered`, `${esc(r.barcode)} → ${esc(r.flight_number)}${note}`);
+  } catch (e) { flash("err", "Failed", esc(e.message)); }
+  busy = false;
+}
+
+$("scan").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const code = e.target.value.trim(); e.target.value = "";
+  if (code) scan(code);
+});
+$("scan").addEventListener("blur", () => {
+  // keep the scan box focused unless the user is working in the setup panel
+  setTimeout(() => { const a = document.activeElement;
+    if (!a || a === document.body) $("scan").focus(); }, 50);
+});
+document.addEventListener("click", e => {
+  if (!e.target.closest("select, input, summary, button, details")) $("scan").focus();
+});
+$("flightSelect").addEventListener("change", () => { renderFlight(); $("scan").focus(); });
+$("mulSelect").addEventListener("change", () => { renderFlight(); $("scan").focus(); });
+
+$("nfSave").onclick = async () => {
+  const num = $("nfNumber").value.trim();
+  if (!num) { flash("err", "Flight number required", ""); return; }
+  try {
+    const f = await api("/flights", {method: "POST", body: {
+      flight_number: num, destination: $("nfDest").value, gate_number: $("nfGate").value,
+      departure_time: $("nfTime").value}});
+    await api("/cans", {method: "POST", body: {mul_id: mulId(), flight_id: f.flight_id}});
+    store.set("reg_flight", f.flight_id);
+    ["nfNumber","nfDest","nfGate","nfTime"].forEach(i => $(i).value = "");
+    $("newFlightBox").open = false;
+    await load(); $("flightSelect").value = f.flight_id; renderFlight();
+    flash("ok", `Flight ${esc(f.flight_number)} ready`, "CAN created — start scanning"); $("scan").focus();
+  } catch (e) { flash("err", "Could not create flight", esc(e.message)); }
+};
+
+// Tell the hardware listener to ignore keystrokes while this page is open.
+const beat = () => fetch(API + "/register-mode", {method: "POST"}).catch(() => {});
+beat(); setInterval(beat, 4000);
+window.addEventListener("pagehide", () => navigator.sendBeacon && fetch(API + "/register-mode", {method: "DELETE", keepalive: true}).catch(() => {}));
+
+load().then(() => $("scan").focus());
+</script>
+</body>
+</html>
