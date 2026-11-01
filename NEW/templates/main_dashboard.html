@@ -9,7 +9,7 @@
 
 <body>
 
-<div class="kiosk">
+<div class="kiosk kiosk-with-dock">
 
   <header class="topbar">
 
@@ -190,34 +190,15 @@
       <a class="btn btn-primary" href="/worker/{{ mul_id }}">Worker View</a>
       <a class="btn btn-warning" href="/attention?mul_id={{ mul_id }}">Needs Attention</a>
       <a class="btn" href="/admin">Admin Dashboard</a>
-      <button
-        class="btn"
-        id="btn-worker-qr"
-        data-mul-id="{{ mul_id }}"
-        title="Show a QR code a phone can scan to open the Worker View"
-      >
-        Worker QR
-      </button>
     </div>
 
   </footer>
 
 </div>
 
-<div class="qr-modal" id="worker-qr-modal" hidden>
-  <div class="qr-modal-box">
-    <button class="qr-modal-close" id="worker-qr-close" aria-label="Close">&times;</button>
-    <h2>Scan to open Worker View</h2>
-    <p class="muted" id="worker-qr-note">Detecting this computer's network address…</p>
-    <div class="qr-modal-grid">
-      <div class="qr-card">
-        <div class="qr-canvas-wrap"><canvas id="worker-qr-canvas" width="170" height="170"></canvas></div>
-        <div class="qr-card-title">Worker View</div>
-        <div class="qr-card-url mono" id="worker-qr-url">—</div>
-      </div>
-    </div>
-  </div>
-</div>
+<aside class="qr-dock" id="qr-dock" data-mul-id="{{ mul_id }}" aria-label="Scan to open the worker loading view">
+  <canvas id="qr-dock-canvas" width="360" height="360"></canvas>
+</aside>
 
 
 <script>
@@ -243,17 +224,12 @@
 
 
   // ----------------------------------------------------------
-  // Auto-refresh. Skipped while the Worker QR modal is open, so
-  // it does not get closed out from under someone mid-scan.
+  // Auto-refresh. The QR dock redraws instantly from a cached
+  // address after each reload, so it never visibly flickers.
   // ----------------------------------------------------------
 
   setInterval(() => {
-
-    var qrModal = document.getElementById("worker-qr-modal");
-    if (qrModal && !qrModal.hidden) return;
-
     window.location.reload();
-
   }, 5000);
 
 </script>

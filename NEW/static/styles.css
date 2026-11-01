@@ -88,6 +88,9 @@ h1, h2, h3 { color: var(--text-primary); }
   padding: 16px 24px 24px;
 }
 
+/* Main board only: shift the header left so the corner QR never covers it. */
+.kiosk-with-dock .topbar { margin-right: 140px; }
+
 /* ---- Simple content page shell (worker / attention / admin) - */
 
 .page {
@@ -1283,3 +1286,21 @@ td .btn { padding: 6px 12px; font-size: 11px; }
   max-width: 220px;
   margin-bottom: 0;
 }
+
+
+/* ---- Always-visible worker QR code (main board, top-right corner) -- */
+
+.qr-dock {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 100;
+  line-height: 0;
+  background: #fff;                       /* QR has its own built-in quiet zone */
+  border-bottom-left-radius: var(--radius-md);
+  box-shadow: -2px 2px 14px rgba(0, 0, 0, 0.5);
+}
+
+.qr-dock canvas { width: 132px; height: 132px; display: block; }
+
+.qr-dock-offline canvas { opacity: 0.2; }

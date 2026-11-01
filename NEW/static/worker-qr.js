@@ -1,31 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────────
-// "Worker QR" popup for the main board.
+// Always-visible "Worker QR" code on the main board (top-right corner).
+//
+// Handlers scan it with a phone to open the worker loading view for this
+// MUL, so nobody has to touch the board's GUI.
 //
 // This computer's LAN address changes depending on where it's plugged in,
 // so instead of a fixed URL, this asks the server what address it's
 // actually bound to right now (GET /api/server-info) and renders that as
-// a QR code a phone camera can scan straight into the worker view for
-// this MUL — as long as the phone is on the same network as this
-// computer, regardless of what that network is.
+// a QR code — the phone must be on the same network as this computer.
+//
+// The board reloads itself every few seconds, so the last known address is
+// cached in sessionStorage and the QR is drawn immediately on load (no
+// blank flash), then refreshed in the background.
 //
 // QR rendering uses vendor/qrcode.js (vendored, MIT-licensed — see
 // vendor/QRCODE-LICENSE.txt) so this works with zero internet access.
 // ─────────────────────────────────────────────────────────────────────────
 
 (function () {
-  const el = (id) => document.getElementById(id);
-  const btn   = el("btn-worker-qr");
-  const modal = el("worker-qr-modal");
-  if (!btn || !modal) return;
+  const dock = document.getElementById("qr-dock");
+  if (!dock) return;
 
-  const mulId = btn.dataset.mulId || "1";
+  const canvas = document.getElementById("qr-dock-canvas");
+  const mulId  = dock.dataset.mulId || "1";
+  const CACHE_KEY = "dmms_server_info";
 
-  // Cache the server info for the session — the LAN IP won't change
-  // while the server keeps running.
-  let cachedInfo = null;
-
-  function drawQr(canvasId, text) {
-    const canvas = el(canvasId);
+  function drawQr(text) {
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -56,43 +56,42 @@
     }
   }
 
-  async function fetchServerInfo() {
-    if (cachedInfo) return cachedInfo;
-    const r = await fetch("/api/server-info", { cache: "no-store" });
-    if (!r.ok) throw new Error("server-info fetch failed");
-    cachedInfo = await r.json();
-    return cachedInfo;
-  }
-
-  async function openModal() {
-    modal.hidden = false;
-    const note = el("worker-qr-note");
-    note.textContent = "Detecting this computer's network address…";
-    el("worker-qr-url").textContent = "";
-
-    try {
-      const info = await fetchServerInfo();
-      if (!info.lan_ip) throw new Error("no LAN IP detected");
-
-      const url = `http://${info.lan_ip}:${info.port}/worker/${mulId}`;
-
-      el("worker-qr-url").textContent = url;
-      drawQr("worker-qr-canvas", url);
-      note.textContent = "Scan with a phone on the same Wi-Fi/network as this computer.";
-    } catch (err) {
-      console.error(err);
-      note.textContent =
-        "Couldn't detect a network address for this computer — check its Wi-Fi/Ethernet " +
-        "connection and that the server was started with host 0.0.0.0.";
+  function show(info) {
+    if (!info || !info.lan_ip) {
+      dock.classList.add("qr-dock-offline");
+      dock.title = "No network address found";
+      return;
     }
+    dock.classList.remove("qr-dock-offline");
+    const url = `http://${info.lan_ip}:${info.port}/worker/${mulId}`;
+    if (dock.dataset.url === url) return;   // already showing this one
+    dock.dataset.url = url;
+    dock.title = url;   // hover tooltip, handy for debugging
+    drawQr(url);
   }
 
-  function closeModal() { modal.hidden = true; }
+  function readCache() {
+    try { return JSON.parse(sessionStorage.getItem(CACHE_KEY)); }
+    catch (e) { return null; }
+  }
 
-  btn.addEventListener("click", openModal);
-  el("worker-qr-close").addEventListener("click", closeModal);
-  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !modal.hidden) closeModal();
-  });
+  function writeCache(info) {
+    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(info)); }
+    catch (e) { /* private mode etc. — fine, just refetch next time */ }
+  }
+
+  // 1) Draw instantly from the last known address, if we have one.
+  show(readCache());
+
+  // 2) Confirm / refresh from the server.
+  fetch("/api/server-info", { cache: "no-store" })
+    .then((r) => {
+      if (!r.ok) throw new Error("server-info fetch failed");
+      return r.json();
+    })
+    .then((info) => { writeCache(info); show(info); })
+    .catch((err) => {
+      console.error(err);
+      if (!dock.dataset.url) show(null);
+    });
 }());
